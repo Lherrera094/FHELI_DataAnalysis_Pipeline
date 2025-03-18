@@ -3,15 +3,22 @@ import sys
 import h5py
 import numpy as np
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QTreeWidget, QTreeWidgetItem, QFileDialog, QTextEdit
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QTreeWidget, 
+    QTreeWidgetItem, QFileDialog, QTextEdit
 )
 from plot_window import PlotWindow
+import os  # For handling file paths
+from matplotlib.figure import Figure
+import plotly.graph_objects as go
+import plotly.io as pio
+import plotly.express as px
+import imageio.v2 as imageio
 
 
 class HDF5Viewer(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("HDF5 File Viewer")
+        self.setWindowTitle("FHELI HDF5 Visualization.")
         self.setGeometry(100, 100, 800, 600)
 
         # Main widget and layout
@@ -27,6 +34,11 @@ class HDF5Viewer(QMainWindow):
         self.load_button = QPushButton("Load HDF5 File", self)
         self.load_button.clicked.connect(self.load_file)
         self.top_layout.addWidget(self.load_button)
+
+        # Create GIF button (NEW)
+        self.gif_button = QPushButton("Create GIF", self)
+        self.gif_button.clicked.connect(self.create_gif)  # Connect to the create_gif method
+        self.top_layout.addWidget(self.gif_button)  # Add the button to the layout
 
         # Exit button
         self.exit_button = QPushButton("Exit", self)
@@ -52,6 +64,7 @@ class HDF5Viewer(QMainWindow):
         self.data = None
         self.single_value_datasets = {}  # Stores single-value datasets for axis selection
         self.plot_window = None  # Sub-window for plotting
+        self.time_series_datasets = []  # Stores time-series datasets for GIF creation
 
     def load_file(self):
         """Open a file dialog to load an HDF5 file."""
@@ -65,10 +78,12 @@ class HDF5Viewer(QMainWindow):
         self.tree_widget.clear()
         self.value_display.clear()
         self.single_value_datasets.clear()
+        self.time_series_datasets.clear()  # Clear time-series datasets
 
         # Populate the tree widget with the file's structure
         with h5py.File(self.file_path, 'r') as file:
             self.populate_tree(file, self.tree_widget)
+        
 
     def populate_tree(self, node, parent_item):
         """Recursively populate the tree widget with groups and datasets."""
@@ -86,6 +101,10 @@ class HDF5Viewer(QMainWindow):
                 # Store single-value datasets for axis selection
                 if item.size == 1:
                     self.single_value_datasets[item.name] = item[()]
+
+                # Check if the dataset is part of a time series
+                if name.startswith("E_abs__tint"):  # Example: "E_t_01", "E_t_02", etc.
+                    self.time_series_datasets.append(item.name)  # Store the dataset name
 
     def on_item_clicked(self, item):
         """Handle clicking on a dataset or group in the tree widget."""
@@ -127,6 +146,63 @@ class HDF5Viewer(QMainWindow):
         self.plot_window.set_data(data, dataset_type)
         self.plot_window.set_single_value_datasets(self.single_value_datasets)
         self.plot_window.show()
+
+    # Method to create a GIF from time-series datasets
+    def create_gif(self):
+        """Create a GIF from time-series datasets."""
+        if not self.time_series_datasets:
+            self.value_display.setText("No time-series datasets found.")
+            return
+
+        # Sort the time-series datasets by their timestep
+        self.time_series_datasets.sort()
+
+        # Create a list to store the frames of the GIF
+        frames = []
+
+        # Open the HDF5 file
+        with h5py.File(self.file_path, 'r') as file:
+            for dataset_name in self.time_series_datasets:
+                dataset = file[dataset_name]
+                data = dataset[()]
+
+                print(f"Plotting {dataset_name}")
+                
+                # Check if the dataset is 3D
+                if data.ndim == 3:
+                    # Project the 3D dataset into 2D by taking a slice (e.g., the first slice)
+                    projected_data = data[0]  # Use the first slice (you can change this)
+                else:
+                    projected_data = data  # Use the dataset as-is if it's already 2D
+
+                fig = go.Figure(    data=go.Heatmap(
+                                    z = projected_data,     # Flattened volume data
+                                    colorscale='jet',                 # Choose a colorscale
+                                    zmin=0,
+                                    zmax=0.2
+                                ))
+    
+                # Update layout
+                fig.update_layout(
+                    title=f"Abs(E) = {dataset_name}",
+                    xaxis_title="Z",
+                    yaxis_title="Y",
+                )
+    
+                # Show the plot
+                img_bytes = fig.to_image(format="png",width=1600,height=1200)
+                img = imageio.imread(img_bytes)
+                frames.append(img)
+
+        # Save the frames as a GIF
+        gif_path, _ = QFileDialog.getSaveFileName(
+            self, "Save GIF", "", "GIF Files (*.gif);;All Files (*)"
+        )
+        if gif_path:
+            if not gif_path.endswith('.gif'):
+                gif_path += '.gif'
+            imageio.mimsave(gif_path, frames, duration=0.5)  # Adjust duration as needed
+            self.value_display.setText(f"GIF saved to {gif_path}")
 
 
 if __name__ == "__main__":
