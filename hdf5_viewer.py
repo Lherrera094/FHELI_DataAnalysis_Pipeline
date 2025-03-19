@@ -4,7 +4,7 @@ import h5py
 import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QTreeWidget, 
-    QTreeWidgetItem, QFileDialog, QTextEdit
+    QTreeWidgetItem, QFileDialog, QTextEdit,  QLabel
 )
 from plot_window import PlotWindow
 import os  # For handling file paths
@@ -58,6 +58,10 @@ class HDF5Viewer(QMainWindow):
         self.value_display = QTextEdit(self)
         self.value_display.setReadOnly(True)  # Make it read-only
         self.main_layout.addWidget(self.value_display)
+
+        # Label to display real-time progress
+        self.progress_label = QLabel("Progress: Idle", self)
+        self.main_layout.addWidget(self.progress_label)
 
         # Variables
         self.file_path = None
@@ -163,11 +167,13 @@ class HDF5Viewer(QMainWindow):
         # Open the HDF5 file
         with h5py.File(self.file_path, 'r') as file:
             for dataset_name in self.time_series_datasets:
+                # NEW: Update progress label
+                self.progress_label.setText(f"Processing: {dataset_name}")
+                QApplication.processEvents()  # Force UI update
+
                 dataset = file[dataset_name]
                 data = dataset[()]
 
-                print(f"Plotting {dataset_name}")
-                
                 # Check if the dataset is 3D
                 if data.ndim == 3:
                     # Project the 3D dataset into 2D by taking a slice (e.g., the first slice)
@@ -203,6 +209,9 @@ class HDF5Viewer(QMainWindow):
                 gif_path += '.gif'
             imageio.mimsave(gif_path, frames, duration=0.5)  # Adjust duration as needed
             self.value_display.setText(f"GIF saved to {gif_path}")
+        
+        # Reset progress label after completion
+        self.progress_label.setText("Progress: Idle")
 
 
 if __name__ == "__main__":
