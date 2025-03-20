@@ -3,18 +3,15 @@ import sys
 import h5py
 import numpy as np
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QPushButton, QTreeWidget, 
-    QTreeWidgetItem, QFileDialog, QTextEdit,  QLabel
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, 
+    QPushButton, QTreeWidget, QTreeWidgetItem, QFileDialog, QTextEdit, QLabel, 
+    QDialog, QFormLayout, QSpinBox, QDialogButtonBox, QComboBox
 )
 from plot_window import PlotWindow
-import os  # For handling file paths
-from matplotlib.figure import Figure
 import plotly.graph_objects as go
-import plotly.io as pio
-import plotly.express as px
 import imageio.v2 as imageio
 
-
+# Main window
 class HDF5Viewer(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -40,11 +37,6 @@ class HDF5Viewer(QMainWindow):
         self.gif_button.clicked.connect(self.create_gif)  # Connect to the create_gif method
         self.top_layout.addWidget(self.gif_button)  # Add the button to the layout
 
-        # Exit button
-        self.exit_button = QPushButton("Exit", self)
-        self.exit_button.clicked.connect(self.close)  # Connect to the close method
-        self.top_layout.addWidget(self.exit_button)
-
         # Add a stretch to push the buttons to the left
         self.top_layout.addStretch()
 
@@ -62,6 +54,15 @@ class HDF5Viewer(QMainWindow):
         # Label to display real-time progress
         self.progress_label = QLabel("Progress: Idle", self)
         self.main_layout.addWidget(self.progress_label)
+
+        # NEW: Bottom layout for the Exit button
+        self.bottom_layout = QHBoxLayout()
+        self.bottom_layout.addStretch()  # Add a stretch to push the Exit button to the right
+        self.exit_button = QPushButton("Exit", self)
+        self.exit_button.clicked.connect(self.close)  # Connect to the close method
+        self.bottom_layout.addWidget(self.exit_button)
+        self.main_layout.addLayout(self.bottom_layout)  # Add the bottom layout to the main layout
+
 
         # Variables
         self.file_path = None
@@ -161,32 +162,58 @@ class HDF5Viewer(QMainWindow):
         # Sort the time-series datasets by their timestep
         self.time_series_datasets.sort()
 
-        # Create a list to store the frames of the GIF
-        frames = []
-
         # Open the HDF5 file
         with h5py.File(self.file_path, 'r') as file:
+
+            # Check the shape of the first dataset to determine the axis limits
+            first_dataset = file[self.time_series_datasets[0]]
+            if first_dataset.ndim != 3:
+                self.value_display.setText("Time-series datasets must be 3D.")
+                return
+
+            # NEW: Open the slice selection dialog
+            slice_dialog = SliceDialog(self)
+            slice_dialog.slice_spinbox.setMaximum(first_dataset.shape[0] - 1)  # Set max slice index
+            if slice_dialog.exec_() != QDialog.Accepted:
+                return  # User canceled the dialog
+
+            # Get the selected axis and slice index
+            axis, slice_index = slice_dialog.get_parameters()
+
+            # Create a list to store the frames of the GIF
+            frames = []
+
             for dataset_name in self.time_series_datasets:
-                # NEW: Update progress label
+                # Update progress label
                 self.progress_label.setText(f"Processing: {dataset_name}")
                 QApplication.processEvents()  # Force UI update
 
                 dataset = file[dataset_name]
                 data = dataset[()]
+                offset = 1e-16
 
-                # Check if the dataset is 3D
-                if data.ndim == 3:
-                    # Project the 3D dataset into 2D by taking a slice (e.g., the first slice)
-                    projected_data = data[0]  # Use the first slice (you can change this)
-                else:
-                    projected_data = data  # Use the dataset as-is if it's already 2D
+                # Slice the 3D dataset along the selected axis
+                if axis == 0:
+                    sliced_data = data[slice_index, :, :]
+                elif axis == 1:
+                    sliced_data = data[:, slice_index, :]
+                elif axis == 2:
+                    sliced_data = data[:, :, slice_index]
+
+                z_log = np.log(sliced_data + offset)
 
                 fig = go.Figure(    data=go.Heatmap(
-                                    z = projected_data,     # Flattened volume data
-                                    colorscale='jet',                 # Choose a colorscale
-                                    zmin=0,
-                                    zmax=0.2
-                                ))
+                                    #z = sliced_data,                # Flattened volume data
+                                    z = z_log,
+                                    colorscale='jet',               # Choose a colorscale
+                                    zmin=np.min( np.log10(1e-10) ),
+                                    zmax=np.max( np.log10(2) ),
+                                    colorbar=dict(
+                                                    title="logAbs(E)",
+                                                    tickvals= np.logspace( 1e-10, 2, 4),
+                                                    ticktext= [f"{1e-10}","0.1","1","2",f"{2}"]
+                                    )  
+                                ) )
     
                 # Update layout
                 fig.update_layout(
@@ -212,6 +239,43 @@ class HDF5Viewer(QMainWindow):
         
         # Reset progress label after completion
         self.progress_label.setText("Progress: Idle")
+
+
+# Added SliceDialog class
+class SliceDialog(QDialog):
+    """Dialog to select the axis and slice for 3D datasets."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Select Slice Parameters")
+        self.setGeometry(200, 200, 300, 150)
+
+        # Layout
+        self.layout = QFormLayout(self)
+
+        # Axis selection
+        self.axis_label = QLabel("Axis:", self)
+        self.axis_combobox = QComboBox(self)
+        self.axis_combobox.addItems(["x", "y", "z"])  # Options for axis 0, 1, or 2
+        self.layout.addRow(self.axis_label, self.axis_combobox)
+
+        # Slice selection
+        self.slice_label = QLabel("Slice Index:", self)
+        self.slice_spinbox = QSpinBox(self)
+        self.slice_spinbox.setMinimum(0)
+        self.slice_spinbox.setMaximum(100)  # Default max, will be updated dynamically
+        self.layout.addRow(self.slice_label, self.slice_spinbox)
+
+        # Buttons
+        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, self)
+        self.button_box.accepted.connect(self.accept)
+        self.button_box.rejected.connect(self.reject)
+        self.layout.addRow(self.button_box)
+
+    def get_parameters(self):
+        """Return the selected axis and slice index."""
+        axis = int(self.axis_combobox.currentText())
+        slice_index = self.slice_spinbox.value()
+        return axis, slice_index
 
 
 if __name__ == "__main__":
