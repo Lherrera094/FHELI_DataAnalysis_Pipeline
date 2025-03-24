@@ -13,7 +13,7 @@ class PlotWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Plot Window")
-        self.setGeometry(200, 200, 800, 800)
+        self.setGeometry(200, 200, 800, 900)
 
         # Layout
         self.layout = QVBoxLayout(self)
@@ -32,6 +32,32 @@ class PlotWindow(QDialog):
         self.title_input.setPlaceholderText("Enter plot title")
         self.form_layout.addRow("Plot Title:", self.title_input)
 
+        # Axis label size controls
+        self.axis_label_size_layout = QHBoxLayout()
+        self.layout.addLayout(self.axis_label_size_layout)
+
+        self.x_label_size_label = QLabel("X Label Size:", self)
+        self.x_label_size_spin = QSpinBox(self)
+        self.x_label_size_spin.setRange(8, 24)  # Reasonable font size range
+        self.x_label_size_spin.setValue(12)      # Default size
+        self.axis_label_size_layout.addWidget(self.x_label_size_label)
+        self.axis_label_size_layout.addWidget(self.x_label_size_spin)
+
+        self.y_label_size_label = QLabel("Y Label Size:", self)
+        self.y_label_size_spin = QSpinBox(self)
+        self.y_label_size_spin.setRange(8, 24)
+        self.y_label_size_spin.setValue(12)
+        self.axis_label_size_layout.addWidget(self.y_label_size_label)
+        self.axis_label_size_layout.addWidget(self.y_label_size_spin)
+
+        self.title_label_size_label = QLabel("Plot Title Size:", self)
+        self.title_label_size_spin = QSpinBox(self)
+        self.title_label_size_spin.setRange(8,30)
+        self.title_label_size_spin.setValue(18)
+        self.axis_label_size_layout.addWidget(self.title_label_size_label)
+        self.axis_label_size_layout.addWidget(self.title_label_size_spin)
+
+
         # X-axis label input
         self.x_label_input = QLineEdit(self)
         self.x_label_input.setPlaceholderText("Enter x-axis label")
@@ -41,6 +67,11 @@ class PlotWindow(QDialog):
         self.y_label_input = QLineEdit(self)
         self.y_label_input.setPlaceholderText("Enter y-axis label")
         self.form_layout.addRow("Y-Axis Label:", self.y_label_input)
+
+        # Colorbar title input (for 2D plots)
+        self.colorbar_title_input = QLineEdit(self)
+        self.colorbar_title_input.setPlaceholderText("Enter colorbar title")
+        self.form_layout.addRow("Colorbar Title:", self.colorbar_title_input)
 
         # NEW: Line color selection for 1D plots
         self.line_color_label = QLabel("Line Color:", self)
@@ -306,9 +337,13 @@ class PlotWindow(QDialog):
             # Plot the data with the selected color and line style
             ax.plot(self.adjusted_data, color=line_color, linestyle=line_style, label=legend_label if legend_label else None)
 
-            ax.set_xlabel(self.x_label_input.text() or "Index")
-            ax.set_ylabel(self.y_label_input.text() or "Value")
-            ax.set_title(self.title_input.text() or "1D Plot")
+            # Set labels with custom sizes
+            ax.set_xlabel(self.x_label_input.text() or "Index", 
+                         fontsize=self.x_label_size_spin.value())
+            ax.set_ylabel(self.y_label_input.text() or "Value", 
+                         fontsize=self.y_label_size_spin.value())
+            ax.set_title(self.title_input.text() or "1D Plot",
+                         fontsize=self.title_label_size_spin.value())
 
             # NEW: Add legend if a label is provided
             if legend_label:
@@ -318,6 +353,7 @@ class PlotWindow(QDialog):
             # Get selected colormap
             colormap = self.colormap_combobox.currentText()
             scale = self.scale_combobox.currentText()
+            colorbar_title = self.colorbar_title_input.text() or "Value"
 
             # Plot the data with the selected colormap and scale
             if scale == "linear":
@@ -325,11 +361,19 @@ class PlotWindow(QDialog):
             else:  # "log"
                 im = ax.imshow(self.adjusted_data, cmap=colormap, norm="log", origin='lower')  # CHANGED: Use adjusted_data
 
-            self.figure.colorbar(im, ax=ax)  # Add a colorbar
+            #self.figure.colorbar(im, ax=ax)  # Add a colorbar
+            # Add colorbar with title
+            cbar = self.figure.colorbar(im, ax=ax)
+            cbar.set_label(colorbar_title, fontsize=self.y_label_size_spin.value())
 
-            ax.set_xlabel(self.x_label_input.text() or "X Axis")
-            ax.set_ylabel(self.y_label_input.text() or "Y Axis")
-            ax.set_title(self.title_input.text() or "2D Heatmap")
+            # Set labels with custom sizes
+            ax.set_xlabel(self.x_label_input.text() or "X", 
+                         fontsize=self.x_label_size_spin.value())
+            ax.set_ylabel(self.y_label_input.text() or "Y", 
+                         fontsize=self.y_label_size_spin.value())
+            
+            ax.set_title(self.title_input.text() or "2D Heatmap",
+                         fontsize=self.title_label_size_spin.value())
 
         # Refresh the canvas
         self.canvas.draw()
@@ -347,4 +391,4 @@ class PlotWindow(QDialog):
             return
 
         # Save the plot
-        self.figure.savefig(file_path)
+        self.figure.savefig(file_path, dpi = 900)
