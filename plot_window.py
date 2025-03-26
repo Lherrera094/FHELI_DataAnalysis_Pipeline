@@ -391,4 +391,4 @@ class PlotWindow(QDialog):
             return
 
         # Save the plot
-        self.figure.savefig(file_path, dpi = 900)
+        self.figure.savefig(file_path, dpi = 1200)
