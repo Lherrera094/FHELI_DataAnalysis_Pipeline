@@ -2,14 +2,20 @@
 import sys
 import h5py
 import numpy as np
+import subprocess
+import json
+import tempfile
+import os
+import imageio.v2 as imageio
+
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, 
     QPushButton, QTreeWidget, QTreeWidgetItem, QFileDialog, QTextEdit, QLabel, 
-    QDialog, QFormLayout, QSpinBox, QDialogButtonBox, QComboBox, QLineEdit, QCheckBox
+    QDialog, QFormLayout, QSpinBox, QDialogButtonBox, QComboBox, QLineEdit, QCheckBox, QDoubleSpinBox
 )
 from plot_window import PlotWindow
 import plotly.graph_objects as go
-import imageio.v2 as imageio
+
 
 # Main window
 class HDF5Viewer(QMainWindow):
@@ -146,11 +152,93 @@ class HDF5Viewer(QMainWindow):
                         elif self.data.ndim == 2:  # 2D dataset
                             self.open_plot_window(self.data, '2D')
                         elif self.data.ndim == 3:  # 3D dataset
-                            self.open_slice_dialog(self.data)  # NEW: Open slice dialog for 3D datasets
+                            self.show_3d_choice_dialog()  # NEW: Open slice dialog for 3D datasets
+
                 elif isinstance(hdf5_object, h5py.Group):  # Group
                     self.value_display.setText("Selected Item is a Group (not a dataset).")
             except KeyError:
                 self.value_display.setText("Error: Unable to access the selected item.")
+
+    def show_3d_choice_dialog(self):
+        """Let user choose between 2D slice or 3D visualization."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Visualization Choice")
+        layout = QVBoxLayout()
+        
+        label = QLabel("This is a 3D dataset. How would you like to visualize it?")
+        layout.addWidget(label)
+        
+        # 2D slice button - using lambda to pass arguments
+        btn_2d = QPushButton("2D Slice", dialog)
+        btn_2d.clicked.connect(lambda: self.handle_3d_choice('2D', dialog))
+        layout.addWidget(btn_2d)
+        
+        # 3D visualization button - using lambda to pass arguments
+        btn_3d = QPushButton("3D Visualization", dialog)
+        btn_3d.clicked.connect(lambda: self.handle_3d_choice('3D', dialog))
+        layout.addWidget(btn_3d)
+        
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def handle_3d_choice(self, choice, dialog):
+        """Handle user's choice of visualization."""
+        dialog.close()
+        if choice == '2D':
+            self.open_slice_dialog(self.data)
+        elif choice == '3D':
+            self.show_3d_parameter_dialog()
+
+    def show_3d_parameter_dialog(self):
+        """Dialog to collect parameters for 3D visualization."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("3D Visualization Parameters")
+        layout = QFormLayout()
+        
+        # Add your parameter inputs here
+        self.iso_surface_level = QDoubleSpinBox()
+        self.iso_surface_level.setRange(0, 1)
+        self.iso_surface_level.setValue(0.5)
+        layout.addRow("Isosurface Level:", self.iso_surface_level)
+        
+        self.color_map = QComboBox()
+        self.color_map.addItems(["jet", "viridis", "hot", "cool"])
+        layout.addRow("Color Map:", self.color_map)
+        
+        # Add more parameters as needed...
+        
+        btn_confirm = QPushButton("Visualize", dialog)
+        btn_confirm.clicked.connect(lambda: self.launch_mayavi_script(dialog))
+        layout.addRow(btn_confirm)
+        
+        dialog.setLayout(layout)
+        dialog.exec_()
+
+    def launch_mayavi_script(self, dialog):
+        """Prepare data and launch external Mayavi script."""
+        dialog.close()
+        
+        # Create temporary file for the 3D data
+        temp_dir = tempfile.mkdtemp()
+        data_path = os.path.join(temp_dir, "3d_data.npy")
+        np.save(data_path, self.data)
+        
+        # Prepare parameters
+        params = {
+            "data_path": data_path,
+            "iso_level": self.iso_surface_level.value(),
+            "colormap": self.color_map.currentText()
+            # Add more parameters as needed
+        }
+        
+        # Save parameters to JSON
+        params_path = os.path.join(temp_dir, "params.json")
+        with open(params_path, 'w') as f:
+            json.dump(params, f)
+        
+        # Launch your Mayavi script
+        script_path = os.path.join(os.path.dirname(__file__), "your_mayavi_script.py")
+        subprocess.Popen([sys.executable, script_path, params_path])
 
     def open_plot_window(self, data, dataset_type):
         """Open the plot window for 1D or 2D datasets."""
