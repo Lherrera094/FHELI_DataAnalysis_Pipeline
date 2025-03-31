@@ -488,7 +488,7 @@ class SliceDialogGif(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Select Slice Parameters for GIF")
-        self.setGeometry(200, 200, 300, 200)                           # Adjusted window size (centerX, centerY, height, width)
+        self.setGeometry(200, 300, 300, 200)                           # Adjusted window size (centerX, centerY, height, width)
 
         # Layout
         self.layout = QFormLayout(self)

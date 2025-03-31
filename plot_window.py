@@ -1,14 +1,19 @@
 # plot_window.py
 from PyQt5.QtWidgets import (
-    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QPushButton, QComboBox, QLabel, QLineEdit, QFileDialog,
-    QSpinBox, QListWidget, QAbstractItemView )
-
+    QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QPushButton, QComboBox, 
+    QLabel, QLineEdit, QFileDialog, QSpinBox, QListWidget, QAbstractItemView,
+    QListWidgetItem, QMessageBox, QWidget
+)
+from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from matplotlib.colors import PowerNorm
 import matplotlib.pyplot as plt
 import numpy as np
+import h5py
 
 class PlotWindow(QDialog):
+#--------------------------------------------- Main Plot Window ------------------------------------------------------
     """A sub-window for plotting 1D and 2D datasets."""
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -23,6 +28,14 @@ class PlotWindow(QDialog):
         self.canvas = FigureCanvas(self.figure)
         self.layout.addWidget(self.canvas)
 
+        # Dataset list widget (for multi-dataset plotting)
+        self.dataset_list = QListWidget(self)
+        self.dataset_list.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.dataset_list.itemSelectionChanged.connect(self.on_dataset_selected)
+        self.datasets_label = QLabel("Datasets:", self)  # Store as instance variable
+        self.layout.addWidget(self.datasets_label)
+        self.layout.addWidget(self.dataset_list)
+
         # Form layout for plot title and axis labels
         self.form_layout = QFormLayout()
         self.layout.addLayout(self.form_layout)
@@ -33,15 +46,23 @@ class PlotWindow(QDialog):
         self.title_input.setPlaceholderText("Enter plot title")
         self.form_layout.addRow("Plot Title:", self.title_input)
 
-        # X-axis label input
+        # Create a horizontal layout for axis labels
+        axis_labels_layout = QHBoxLayout()
+
+        # X-axis label
+        axis_labels_layout.addWidget(QLabel("X Label:"))
         self.x_label_input = QLineEdit(self)
         self.x_label_input.setPlaceholderText("Enter x-axis label")
-        self.form_layout.addRow("X-Axis Label:", self.x_label_input)
+        axis_labels_layout.addWidget(self.x_label_input)
 
-        # Y-axis label input
+        # Y-axis label
+        axis_labels_layout.addWidget(QLabel("Y Label:"))
         self.y_label_input = QLineEdit(self)
         self.y_label_input.setPlaceholderText("Enter y-axis label")
-        self.form_layout.addRow("Y-Axis Label:", self.y_label_input)
+        axis_labels_layout.addWidget(self.y_label_input)
+
+        # Add the entire row to the form layout
+        self.form_layout.addRow("Axis Labels:", axis_labels_layout)
 
         # Axis label size controls
         self.axis_label_size_layout = QHBoxLayout()
@@ -68,18 +89,41 @@ class PlotWindow(QDialog):
         self.axis_label_size_layout.addWidget(self.title_label_size_label)
         self.axis_label_size_layout.addWidget(self.title_label_size_spin)
 
-#Controls for 1D plots
-        # Line color selection for 1D plots
-        self.line_color_label = QLabel("Line Color:", self)
-        self.line_color_combobox = QComboBox(self)
-        self.line_color_combobox.addItems(["blue", "red", "green", "black", "purple", "orange", "cyan", "magenta"]) 
-        self.form_layout.addRow(self.line_color_label, self.line_color_combobox)
+#---------------------------------------- Controls for 1D plots ----------------------------------------------------
+        # Create a container widget that includes both the label and controls
+        self.line_props_container = QWidget()
+        line_props_container_layout = QHBoxLayout(self.line_props_container)
 
-        # Line style selection for 1D plots
-        self.line_style_label = QLabel("Line Style:", self)
+        # Add the "Line Properties" label
+        line_props_label = QLabel("Line Properties:")
+        line_props_container_layout.addWidget(line_props_label)
+
+        # Add the controls
+        line_props_layout = QHBoxLayout()
+        line_props_container_layout.addLayout(line_props_layout)
+
+        # Line color
+        line_props_layout.addWidget(QLabel("Color:"))
+        self.line_color_combobox = QComboBox(self)
+        self.line_color_combobox.addItems([ "royalblue", "red", "forestgreen", "black", "purple", "orange", "navy", 
+                                            "magenta", "tomato","darkcyan","steelblue"])
+        line_props_layout.addWidget(self.line_color_combobox)
+
+        # Line style
+        line_props_layout.addWidget(QLabel("Style:"))
         self.line_style_combobox = QComboBox(self)
-        self.line_style_combobox.addItems(["-", "--", "-.", ":", "None"])  # Add common line styles
-        self.form_layout.addRow(self.line_style_label, self.line_style_combobox)
+        self.line_style_combobox.addItems(["-", "--", "-.", ":", "None"])
+        line_props_layout.addWidget(self.line_style_combobox)
+
+        # Line width
+        line_props_layout.addWidget(QLabel("Width:"))
+        self.line_width = QSpinBox(self)
+        self.line_width.setRange(1, 7)
+        self.line_width.setValue(1)
+        line_props_layout.addWidget(self.line_width)
+
+        # Add the entire container to the form layout (without an additional label)
+        self.form_layout.addRow(self.line_props_container)
 
         # Legend input for 1D plots
         self.legend_input = QLineEdit(self)
@@ -107,17 +151,30 @@ class PlotWindow(QDialog):
         self.rightp_spinbox.setMaximum(200)
         self.boundary_layout.addWidget(self.rightp_spinbox)
 
-#Controls for 2D plots
+#-------------------------------------------------- Controls for 2D plots -----------------------------------------------
         # Colorbar title input (for 2D plots)
         self.colorbar_title_input = QLineEdit(self)
         self.colorbar_title_input.setPlaceholderText("Enter colorbar title")
         self.form_layout.addRow("Colorbar Title:", self.colorbar_title_input)
 
+        # Create a container widget for 2D plot controls
+        self.twoD_props_container = QWidget()
+        twoD_props_layout = QHBoxLayout(self.twoD_props_container)
+
         # Colormap selection
-        self.colormap_label = QLabel("Colormap:", self)
+        twoD_props_layout.addWidget(QLabel("Colormap:"))
         self.colormap_combobox = QComboBox(self)
-        self.colormap_combobox.addItems(plt.colormaps())  # Add all available colormaps
-        self.form_layout.addRow(self.colormap_label, self.colormap_combobox)
+        self.colormap_combobox.addItems(plt.colormaps())
+        twoD_props_layout.addWidget(self.colormap_combobox)
+
+        # Scale selection
+        twoD_props_layout.addWidget(QLabel("Scale:"))
+        self.scale_combobox = QComboBox(self)
+        self.scale_combobox.addItems(["Linear", "Log", "PowerLaw"])
+        twoD_props_layout.addWidget(self.scale_combobox)
+
+        # Add to form layout
+        self.form_layout.addRow("Color Features:", self.twoD_props_container)
 
         self.top_label = QLabel("Top Layers:", self)
         self.boundary_layout.addWidget(self.top_label)
@@ -152,16 +209,26 @@ class PlotWindow(QDialog):
         self.boundary_layout.addWidget(self.right_spinbox)
 
 #Shared controls for 1D and 2D
-        # Scale selection (linear or logarithmic)
-        self.scale_label = QLabel("Scale:", self)
-        self.scale_combobox = QComboBox(self)
-        self.scale_combobox.addItems(["linear", "log"])                             # Options for scale
-        self.form_layout.addRow(self.scale_label, self.scale_combobox)
-
-        # Plot button (includes boundary removal functionality)
+        # Plot button (includes boundary removal functionality). It's used for 2D datasets
         self.plot_button = QPushButton("Plot", self)
         self.plot_button.clicked.connect(self.plot)
         self.layout.addWidget(self.plot_button)
+
+        # Action buttons
+        self.button_layout = QHBoxLayout()
+        self.layout.addLayout(self.button_layout)
+        
+        self.add_button = QPushButton("Add Dataset", self)
+        self.add_button.clicked.connect(self.add_dataset)
+        self.button_layout.addWidget(self.add_button)
+        
+        self.update_button = QPushButton("Update Plot", self)
+        self.update_button.clicked.connect(self.update_plot)
+        self.button_layout.addWidget(self.update_button)
+
+        self.remove_button = QPushButton("Remove Selected", self)
+        self.remove_button.clicked.connect(self.remove_datasets)
+        self.button_layout.addWidget(self.remove_button)
 
         # Save plot button
         self.save_button = QPushButton("Save Plot", self)
@@ -169,19 +236,22 @@ class PlotWindow(QDialog):
         self.layout.addWidget(self.save_button)
 
         # Variables
-        self.data = None
-        self.adjusted_data = None                               # Stores the dataset after boundary removal
-        self.dataset_type = None                                # '1D' or '2D'
+        self.data =             None
+        self.adjusted_data =    None                                # Stores the dataset after boundary removal
+        self.dataset_type =     None                                # '1D' or '2D'
+
+        self.datasets =         {}                                  # {name: (data, color, style, label, width)}
+        self.current_plots =    {}                                  # Track currently plotted datasets
+        self.parent_window =    parent                              # Reference to main window
 
     def set_data(self, data, dataset_type):
         """Set the dataset to be plotted and its type (1D or 2D)."""
-        self.data = data
-        self.adjusted_data = data  #s Initialize adjusted_data with the original data
-        self.dataset_type = dataset_type
+        self.data =             data
+        self.adjusted_data =    data                                # Initialize adjusted_data with the original data
+        self.dataset_type =     dataset_type
 
         # Show/hide axis selection based on dataset type
         if self.dataset_type == '1D':
-
             # Show features in plot_window for 1D plots
             # Show only left and right removal for 1D datasets
             self.boundary_layout.addWidget(self.left_points)
@@ -195,12 +265,15 @@ class PlotWindow(QDialog):
             self.rightp_spinbox.show()
 
             # Show line color, line style, and legend options for 1D plots
-            self.line_color_label.show()
-            self.line_color_combobox.show()
-            self.line_style_label.show()
-            self.line_style_combobox.show()
+            self.line_props_container.show()
             self.form_layout.labelForField(self.legend_input).show()
             self.legend_input.show()
+            self.datasets_label.show()
+            self.dataset_list.show()
+
+            self.add_button.show()
+            self.update_button.show()
+            self.remove_button.show()
 
             # Hide features of 2D plots
             # Hide top and bottom removal for 1D datasets
@@ -213,15 +286,16 @@ class PlotWindow(QDialog):
             self.right_label.hide()
             self.right_spinbox.hide()
 
-            self.colormap_label.hide()
-            self.colormap_combobox.hide()
-            self.scale_label.hide()
-            self.scale_combobox.hide()
+            self.twoD_props_container.hide()
+            self.form_layout.labelForField(self.twoD_props_container).hide()
+            self.colorbar_title_input.hide()
+            self.form_layout.labelForField(self.colorbar_title_input).hide()
             self.form_layout.labelForField(self.colorbar_title_input).hide()
             self.colorbar_title_input.hide()
 
+            self.plot_button.hide()
+
         else:  # '2D'
-            
             # Show features in plot_window for 2D plots
             # Show top, bottom, left, and right removal for 2D datasets
             self.boundary_layout.addWidget(self.top_label)
@@ -243,12 +317,15 @@ class PlotWindow(QDialog):
             self.right_label.show()
             self.right_spinbox.show()
 
-            self.colormap_label.show()
-            self.colormap_combobox.show()
-            self.scale_label.show()
-            self.scale_combobox.show()
+            # Show 2D controls
+            self.twoD_props_container.show()
+            self.form_layout.labelForField(self.twoD_props_container).show()
+            self.colorbar_title_input.show()
+            self.form_layout.labelForField(self.colorbar_title_input).show()
             self.form_layout.labelForField(self.colorbar_title_input).show()
             self.colorbar_title_input.show()
+
+            self.plot_button.show()
 
             self.left_points.hide()
             self.leftp_spinbox.hide()
@@ -256,13 +333,15 @@ class PlotWindow(QDialog):
             self.rightp_spinbox.hide()
 
             # Hide line color, line style, and legend options for 2D plots
-            self.line_color_label.hide()
-            self.line_color_combobox.hide()
-            self.line_style_label.hide()
-            self.line_style_combobox.hide()
+            self.line_props_container.hide()
             self.form_layout.labelForField(self.legend_input).hide()
             self.legend_input.hide()
+            self.datasets_label.hide()
+            self.dataset_list.hide()
 
+            self.add_button.hide()
+            self.update_button.hide()
+            self.remove_button.hide()
 
     def remove_boundary_layers(self):
         """Remove the specified number of layers/points from the boundaries of the dataset."""
@@ -293,8 +372,165 @@ class PlotWindow(QDialog):
 
         return self.adjusted_data
 
+    def add_dataset(self):
+        """Add a new dataset from the main window."""
+        if not self.parent_window or not self.parent_window.file_path:
+            QMessageBox.warning(self, "Warning", "No HDF5 file loaded in main window")
+            return
+            
+        # Get selected items from main window tree
+        selected_items = self.parent_window.tree_widget.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "Warning", "No dataset selected in main window")
+            return
+            
+        with h5py.File(self.parent_window.file_path, 'r') as file:
+            for item in selected_items:
+                full_path = item.data(0, 1)
+                try:
+                    dataset = file[full_path]
+                    if not isinstance(dataset, h5py.Dataset):
+                        continue
+                        
+                    data = dataset[()]
+                    if data.ndim != 1:
+                        QMessageBox.warning(self, "Warning", f"Dataset {full_path} is not 1D")
+                        continue
+                        
+                    # Generate a unique name
+                    name = full_path.split('/')[-1]
+                    if name in self.datasets:
+                        name = f"{name}_{full_path.split('/')[-2]}"
+                        print(name)
+                        
+                    # Add to our datasets with default styling
+                    default_color = "blue"  # Default color if combo box isn't available
+                    default_style = "-"     # Default line style
+                    default_width = 1       # Default line width
+                    default_label = name    #Default label name if not input
+                    
+                    # Try to get current values from UI elements if they exist
+                    try:
+                        default_color = self.line_color_combobox.currentText()
+                        default_style = self.line_style_combobox.currentText()
+                        default_width = self.line_width.value()
+                        default_label = self.legend_input.text()
+                    except AttributeError:
+                        pass
+                        
+                    self.datasets[name] = {
+                        'data': data,
+                        'color': default_color,
+                        'style': default_style,
+                        'label': default_label,
+                        'width': default_width
+                    }
+                    
+                    # Add to list widget
+                    list_item = QListWidgetItem(name)
+                    list_item.setData(Qt.UserRole, name)  # Store the dataset name
+                    self.dataset_list.addItem(list_item)
+                    
+                except Exception as e:
+                    QMessageBox.warning(self, "Error", f"Couldn't load dataset {full_path}: {str(e)}")
+        
+        if self.datasets:
+            self.update_plot()
+
+    def remove_datasets(self):
+        """Remove selected datasets from the plot."""
+        selected_items = self.dataset_list.selectedItems()
+        if not selected_items:
+            return
+            
+        for item in selected_items:
+            name = item.data(Qt.UserRole)
+            if name in self.datasets:
+                del self.datasets[name]
+            self.dataset_list.takeItem(self.dataset_list.row(item))
+        
+        self.update_plot()                                                  # Refresh the plot after removal
+    
+    def on_dataset_selected(self):
+        """When a dataset is selected, update the customization controls."""
+        selected_items = self.dataset_list.selectedItems()
+            
+        # Return if no items are selected
+        if not selected_items:
+            return
+            
+        name = selected_items[0].data(Qt.UserRole)
+        if name not in self.datasets:
+            return
+            
+        dataset = self.datasets[name]
+        
+        # Update controls to match selected dataset
+        self.line_color_combobox.setCurrentText(    dataset['color'] )
+        self.line_style_combobox.setCurrentText(    dataset['style'] )
+        self.legend_input.setText(                  dataset['label'] )                     
+        self.line_width.setValue(                   dataset['width'] )
+    
+    def apply_customization(self):
+        """Apply current customization to selected dataset."""
+        selected_items = self.dataset_list.selectedItems()
+        if not selected_items or len(selected_items) != 1:
+            return
+            
+        for item in selected_items:
+            name = item.data(Qt.UserRole)
+            if name in self.datasets:
+                self.datasets[name].update({
+                    'color': self.line_color_combobox.currentText(),
+                    'style': self.line_style_combobox.currentText(),
+                    'label': self.legend_input.text(),
+                    'width': self.line_width.value()
+                })
+    
+    def update_plot(self):
+        """Update the plot with all datasets added to the list."""
+        self.apply_customization()
+
+        self.figure.clear()
+        ax = self.figure.add_subplot(111)
+        
+        if not self.datasets:
+            self.canvas.draw()
+            return
+            
+        # Plot each dataset with its customization
+        for name, dataset in self.datasets.items():
+            data = dataset['data']
+            
+            # Apply boundary removal using the spin boxes
+            left = self.leftp_spinbox.value()  # Changed from self.left_points
+            right = self.rightp_spinbox.value()  # Changed from self.right_points
+            
+            if left + right < len(data):
+                data = data[left:len(data)-right]
+            
+            ax.plot(
+                data,
+                color=dataset['color'],
+                linestyle=dataset['style'],
+                label=dataset['label'],
+                linewidth=dataset['width']
+            )
+        
+        # Set labels and title
+        ax.set_xlabel( self.x_label_input.text() or "X Axis",  fontsize=self.x_label_size_spin.value() )
+        ax.set_ylabel( self.y_label_input.text() or "Y Axis",  fontsize=self.y_label_size_spin.value() )
+        ax.set_title(  self.title_input.text()   or "1D Plot", fontsize=self.title_label_size_spin.value())
+        
+        # Add legend if we have any custom labels
+        if any(d['label'] for d in self.datasets.values()):
+            ax.legend()
+        
+        ax.grid(True)
+        self.canvas.draw()
+
     def plot(self):
-        """Plot the dataset."""
+        """Plot 2D datasets only."""
         if self.data is None:
             return
 
@@ -307,38 +543,20 @@ class PlotWindow(QDialog):
         # Remove boundary layers/points
         self.adjusted_data = self.remove_boundary_layers()
 
-        if self.dataset_type == '1D':  # 1D dataset
-            # Get line color, line style, and legend label
-            line_color = self.line_color_combobox.currentText()
-            line_style = self.line_style_combobox.currentText()
-            line_legend = self.legend_input.text()
-
-            ax.grid(True)
-
-            # Plot the data with the selected color and line style
-            ax.plot(self.adjusted_data, color=line_color, linestyle=line_style, label=line_legend )
-
-            # Set labels with custom sizes
-            ax.set_xlabel(self.x_label_input.text() or "Index", 
-                         fontsize=self.x_label_size_spin.value())
-            ax.set_ylabel(self.y_label_input.text() or "Value", 
-                         fontsize=self.y_label_size_spin.value())
-            ax.set_title(self.title_input.text() or "1D Plot",
-                         fontsize=self.title_label_size_spin.value())
-            if line_legend:
-                ax.legend()
-
-        else:  # 2D dataset
+        if self.dataset_type == '2D':                                                               # 2D dataset
+            
             # Get selected colormap
             colormap = self.colormap_combobox.currentText()
             scale = self.scale_combobox.currentText()
             colorbar_title = self.colorbar_title_input.text() or "Value"
 
             # Plot the data with the selected colormap and scale
-            if scale == "linear":
-                im = ax.imshow(self.adjusted_data, cmap=colormap, origin='lower')                   # Use adjusted_data
-            else:  # "log"
-                im = ax.imshow(self.adjusted_data, cmap=colormap, norm="log", origin='lower')       # Use adjusted_data
+            if   scale == "Linear":
+                im = ax.imshow(self.adjusted_data, cmap=colormap, origin='lower')                   
+            elif scale == "Log":  
+                im = ax.imshow(self.adjusted_data, cmap=colormap, norm="log", origin='lower')    
+            else:
+                im = ax.imshow(self.adjusted_data, cmap=colormap, norm=PowerNorm(gamma=0.5), origin='lower')
 
             #self.figure.colorbar(im, ax=ax)  # Add a colorbar
             # Add colorbar with title
@@ -346,57 +564,19 @@ class PlotWindow(QDialog):
             cbar.set_label(colorbar_title, fontsize=self.y_label_size_spin.value())
 
             # Set labels with custom sizes
-            ax.set_xlabel(self.x_label_input.text() or "X", 
+            ax.set_xlabel(self.x_label_input.text() or "X-Axis", 
                          fontsize=self.x_label_size_spin.value())
-            ax.set_ylabel(self.y_label_input.text() or "Y", 
+            ax.set_ylabel(self.y_label_input.text() or "Y-Axis", 
                          fontsize=self.y_label_size_spin.value())
             
             ax.set_title(self.title_input.text() or "2D Heatmap",
                          fontsize=self.title_label_size_spin.value())
 
+        else: 
+            QMessageBox.warning(self, "Warning", "Dataset is not 2D")
+            return
+            
         # Refresh the canvas
-        self.canvas.draw()
-
-    def plot_selected(self):
-        """Plot all selected 1D datasets with automatic legends."""
-        if not self.datasets or self.dataset_type != '1D':
-            return
-            
-        selected_items = self.dataset_list.selectedItems()
-        if not selected_items:
-            return
-            
-        # Clear previous plot but keep track of existing plots
-        self.figure.clear()
-        ax = self.figure.add_subplot(111)
-        
-        # Get plot customization
-        line_color = self.line_color_combobox.currentText()
-        line_style = self.line_style_combobox.currentText()
-        
-        # Plot each selected dataset
-        for item in selected_items:
-            name = item.text()
-            data = self.datasets[name]
-            
-            # Apply boundary removal
-            left = self.left_spinbox.value()
-            right = self.right_spinbox.value()
-            if left + right < len(data):
-                data = data[left:len(data)-right]
-            
-            # Plot with dataset name as legend
-            ax.plot(data, color=line_color, linestyle=line_style, label=name)
-            self.current_plots[name] = data  # Track plotted datasets
-        
-        # Add legend and labels
-        if len(selected_items) >= 1:
-            ax.legend()
-            
-        ax.set_xlabel(self.x_label_input.text() or "Index")
-        ax.set_ylabel(self.y_label_input.text() or "Value")
-        ax.set_title(self.title_input.text() or "1D Plot Comparison")
-        
         self.canvas.draw()
 
     def save_plot(self):
