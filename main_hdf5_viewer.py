@@ -30,7 +30,7 @@ class HDF5Viewer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FHELI HDF5 Visualization.")
-        self.setGeometry(200, 100, 650, 800)
+        self.setGeometry(200, 50, 650, 900)
 
         # Main widget and layout
         self.main_widget = QWidget()
@@ -195,7 +195,7 @@ class HDF5Viewer(QMainWindow):
             except KeyError:
                 self.value_display.setText("Error: Unable to access the selected item.")
 
-    # Method to open the operation window
+#--------------------------------- Method to open the operation window ----------------------------------------------
     def open_operation_window(self):
         """Open the operation window for dataset manipulation."""
         if not self.operation_window:
@@ -284,7 +284,7 @@ class HDF5Viewer(QMainWindow):
         """Handle user's choice of visualization."""
         dialog.close()
         if choice == '2D':
-            self.open_slice_dialog(self.data)
+            self.open_plot_window(self.data, "3D")
         elif choice == '3D':
             self.show_3d_parameter_dialog()
 
@@ -561,7 +561,7 @@ class SliceDialogGif(QDialog):
         right = self.right_spinbox.value()
 
         # Map x, y, z to axis indices
-        axis_map = {"x": 0, "y": 1, "z": 2}
+        axis_map = {"X": 0, "Y": 1, "Z": 2}
         return axis_map[axis], slice_index, top, bottom, left, right            # Added boundary values
 
 

@@ -18,7 +18,7 @@ class PlotWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Plot Window")
-        self.setGeometry(850, 100, 700, 800)                    # Adjusted window size (centerX, centerY, height, width)
+        self.setGeometry(850, 50, 700, 900)                    # Adjusted window size (centerX, centerY, height, width)
 
         # Layout
         self.layout = QVBoxLayout(self)
@@ -40,7 +40,7 @@ class PlotWindow(QDialog):
         self.form_layout = QFormLayout()
         self.layout.addLayout(self.form_layout)
 
-#Plot features customized by user. General for 1D and 2D
+#---------------------- Plot features customized by user. General for 1D and 2D --------------------------------------
         # Plot title input
         self.title_input = QLineEdit(self)
         self.title_input.setPlaceholderText("Enter plot title")
@@ -90,6 +90,24 @@ class PlotWindow(QDialog):
         self.axis_label_size_layout.addWidget(self.title_label_size_spin)
 
 #---------------------------------------- Controls for 1D plots ----------------------------------------------------
+        # Add this in the 1D controls section (after the boundary removal controls)
+        self.scale_layout = QHBoxLayout()
+        self.layout.addLayout(self.scale_layout)
+
+        # X-axis scale
+        self.x_scale_label = QLabel("X Scale:", self)
+        self.scale_layout.addWidget(self.x_scale_label)
+        self.x_scale_combobox = QComboBox(self)
+        self.x_scale_combobox.addItems(["Linear", "Log"])
+        self.scale_layout.addWidget(self.x_scale_combobox)
+
+        # Y-axis scale
+        self.y_scale_label = QLabel("Y Scale:", self)
+        self.scale_layout.addWidget(self.y_scale_label)
+        self.y_scale_combobox = QComboBox(self)
+        self.y_scale_combobox.addItems(["Linear", "Log"])
+        self.scale_layout.addWidget(self.y_scale_combobox)
+
         # Create a container widget that includes both the label and controls
         self.line_props_container = QWidget()
         line_props_container_layout = QHBoxLayout(self.line_props_container)
@@ -105,7 +123,7 @@ class PlotWindow(QDialog):
         # Line color
         line_props_layout.addWidget(QLabel("Color:"))
         self.line_color_combobox = QComboBox(self)
-        self.line_color_combobox.addItems([ "royalblue", "red", "forestgreen", "black", "purple", "orange", "navy", 
+        self.line_color_combobox.addItems([ "blue", "royalblue", "red", "forestgreen", "black", "purple", "orange", "navy", 
                                             "magenta", "tomato","darkcyan","steelblue"])
         line_props_layout.addWidget(self.line_color_combobox)
 
@@ -157,7 +175,28 @@ class PlotWindow(QDialog):
         self.colorbar_title_input.setPlaceholderText("Enter colorbar title")
         self.form_layout.addRow("Colorbar Title:", self.colorbar_title_input)
 
-        # Create a container widget for 2D plot controls
+        # Create a container widget for 2D plot colormap controls
+        self.threeD_props_container = QWidget()
+        threeD_props_layout = QHBoxLayout(self.threeD_props_container)
+
+        # Scale selection
+        threeD_props_layout.addWidget( QLabel("Axis Slice:") )
+        self.axis_slice_combobox = QComboBox(self)
+        self.axis_slice_combobox.addItems( ["X", "Y", "Z"] )
+        threeD_props_layout.addWidget(self.axis_slice_combobox)
+
+        self.slice_label = QLabel("Slice:", self)
+        threeD_props_layout.addWidget(self.slice_label)
+
+        self.slice_spinbox = QSpinBox(self)
+        self.slice_spinbox.setMinimum(0)
+        self.slice_spinbox.setMaximum(500)  # Arbitrary max value
+        threeD_props_layout.addWidget(self.slice_spinbox)
+
+        # Add to form layout
+        self.form_layout.addRow("Slice 3D dataset:", self.threeD_props_container)
+
+        # Create a container widget for 2D plot colormap controls
         self.twoD_props_container = QWidget()
         twoD_props_layout = QHBoxLayout(self.twoD_props_container)
 
@@ -170,7 +209,7 @@ class PlotWindow(QDialog):
         # Scale selection
         twoD_props_layout.addWidget(QLabel("Scale:"))
         self.scale_combobox = QComboBox(self)
-        self.scale_combobox.addItems(["Linear", "Log", "PowerLaw"])
+        self.scale_combobox.addItems( ["Linear", "Log", "PowerLaw"] )
         twoD_props_layout.addWidget(self.scale_combobox)
 
         # Add to form layout
@@ -236,8 +275,7 @@ class PlotWindow(QDialog):
         self.layout.addWidget(self.save_button)
 
         # Variables
-        self.data =             None
-        self.adjusted_data =    None                                # Stores the dataset after boundary removal
+        self.data =             None                                #Dataset selected from main window
         self.dataset_type =     None                                # '1D' or '2D'
 
         self.datasets =         {}                                  # {name: (data, color, style, label, width)}
@@ -245,7 +283,7 @@ class PlotWindow(QDialog):
         self.parent_window =    parent                              # Reference to main window
 
     def set_data(self, data, dataset_type):
-        """Set the dataset to be plotted and its type (1D or 2D)."""
+        """Set the dataset to be plotted and its type (1D, 2D or 3D slice)."""
         self.data =             data
         self.adjusted_data =    data                                # Initialize adjusted_data with the original data
         self.dataset_type =     dataset_type
@@ -263,6 +301,12 @@ class PlotWindow(QDialog):
             self.leftp_spinbox.show()
             self.right_points.show()
             self.rightp_spinbox.show()
+
+            # In the 1D section of set_data:
+            self.x_scale_label.show()
+            self.x_scale_combobox.show()
+            self.y_scale_label.show()
+            self.y_scale_combobox.show()
 
             # Show line color, line style, and legend options for 1D plots
             self.line_props_container.show()
@@ -286,6 +330,12 @@ class PlotWindow(QDialog):
             self.right_label.hide()
             self.right_spinbox.hide()
 
+            #3D slice controls
+            self.threeD_props_container.hide()
+            self.form_layout.labelForField(self.threeD_props_container).hide()
+            self.slice_label.hide()
+            self.slice_spinbox.hide()
+
             self.twoD_props_container.hide()
             self.form_layout.labelForField(self.twoD_props_container).hide()
             self.colorbar_title_input.hide()
@@ -295,7 +345,7 @@ class PlotWindow(QDialog):
 
             self.plot_button.hide()
 
-        else:  # '2D'
+        else:                                             # '2D'
             # Show features in plot_window for 2D plots
             # Show top, bottom, left, and right removal for 2D datasets
             self.boundary_layout.addWidget(self.top_label)
@@ -317,6 +367,19 @@ class PlotWindow(QDialog):
             self.right_label.show()
             self.right_spinbox.show()
 
+            if self.dataset_type == "3D":
+                #3D slice controls
+                self.threeD_props_container.show()
+                self.form_layout.labelForField(self.threeD_props_container).show()
+                self.slice_label.show()
+                self.slice_spinbox.show()
+            else:
+                #3D slice controls
+                self.threeD_props_container.hide()
+                self.form_layout.labelForField(self.threeD_props_container).hide()
+                self.slice_label.hide()
+                self.slice_spinbox.hide()
+
             # Show 2D controls
             self.twoD_props_container.show()
             self.form_layout.labelForField(self.twoD_props_container).show()
@@ -332,6 +395,12 @@ class PlotWindow(QDialog):
             self.right_points.hide()
             self.rightp_spinbox.hide()
 
+            # In the 2D section of set_data:
+            self.x_scale_label.hide()
+            self.x_scale_combobox.hide()
+            self.y_scale_label.hide()
+            self.y_scale_combobox.hide()
+
             # Hide line color, line style, and legend options for 2D plots
             self.line_props_container.hide()
             self.form_layout.labelForField(self.legend_input).hide()
@@ -343,34 +412,35 @@ class PlotWindow(QDialog):
             self.update_button.hide()
             self.remove_button.hide()
 
-    def remove_boundary_layers(self):
+
+    def remove_boundary_layers(self, data):
         """Remove the specified number of layers/points from the boundaries of the dataset."""
-        if self.adjusted_data is None:
-            return self.adjusted_data
+        if self.data is None:
+            return self.data
 
         if self.dataset_type == '1D':  # 1D dataset
             left = self.leftp_spinbox.value()
             right = self.rightp_spinbox.value()
-            length = len(self.adjusted_data)
+            length = len(data)
 
             if left + right < length:                           # Ensure valid boundaries
-                self.adjusted_data = self.adjusted_data[left:length - right]
+                data = data[left:length - right]
             else:
                 print("Invalid boundary removal parameters. Skipping boundary removal.")
 
-        elif self.dataset_type == '2D':  # 2D dataset
+        elif self.dataset_type in ['2D', '3D']:  # 2D dataset
             top = self.top_spinbox.value()
             bottom = self.bottom_spinbox.value()
             left = self.left_spinbox.value()
             right = self.right_spinbox.value()
-            rows, cols = self.adjusted_data.shape
+            rows, cols = data.shape
 
             if top + bottom < rows and left + right < cols:  # Ensure valid boundaries
-                self.adjusted_data = self.adjusted_data[top:rows - bottom, left:cols - right]
+                data = data[top:rows - bottom, left:cols - right]
             else:
                 print("Invalid boundary removal parameters. Skipping boundary removal.")
 
-        return self.adjusted_data
+        return data
 
     def add_dataset(self):
         """Add a new dataset from the main window."""
@@ -484,7 +554,9 @@ class PlotWindow(QDialog):
                     'color': self.line_color_combobox.currentText(),
                     'style': self.line_style_combobox.currentText(),
                     'label': self.legend_input.text(),
-                    'width': self.line_width.value()
+                    'width': self.line_width.value(),
+                    'x_scale': self.x_scale_combobox.currentText(),
+                    'y_scale': self.y_scale_combobox.currentText()
                 })
     
     def update_plot(self):
@@ -521,6 +593,12 @@ class PlotWindow(QDialog):
         ax.set_xlabel( self.x_label_input.text() or "X Axis",  fontsize=self.x_label_size_spin.value() )
         ax.set_ylabel( self.y_label_input.text() or "Y Axis",  fontsize=self.y_label_size_spin.value() )
         ax.set_title(  self.title_input.text()   or "1D Plot", fontsize=self.title_label_size_spin.value())
+
+        # Apply logarithmic scales if selected
+        if self.x_scale_combobox.currentText() == "Log":
+            ax.set_xscale('log')
+        if self.y_scale_combobox.currentText() == "Log":
+            ax.set_yscale('log')
         
         # Add legend if we have any custom labels
         if any(d['label'] for d in self.datasets.values()):
@@ -540,41 +618,63 @@ class PlotWindow(QDialog):
         # Create a new plot
         ax = self.figure.add_subplot(111)
 
-        # Remove boundary layers/points
-        self.adjusted_data = self.remove_boundary_layers()
+        if self.dataset_type == "3D":
+            axis = self.axis_slice_combobox.currentText()                                 # Get the axis label (x, y, z)
+            slice_index = self.slice_spinbox.value()
 
-        if self.dataset_type == '2D':                                                               # 2D dataset
-            
-            # Get selected colormap
-            colormap = self.colormap_combobox.currentText()
-            scale = self.scale_combobox.currentText()
-            colorbar_title = self.colorbar_title_input.text() or "Value"
+            # Map x, y, z to axis indices
+            axis_map = {"X": 0, "Y": 1, "Z": 2}
 
-            # Plot the data with the selected colormap and scale
-            if   scale == "Linear":
-                im = ax.imshow(self.adjusted_data, cmap=colormap, origin='lower')                   
-            elif scale == "Log":  
-                im = ax.imshow(self.adjusted_data, cmap=colormap, norm="log", origin='lower')    
-            else:
-                im = ax.imshow(self.adjusted_data, cmap=colormap, norm=PowerNorm(gamma=0.5), origin='lower')
+            # Slice the 3D dataset
+            if axis_map[axis] == 0:
+                data = self.data[slice_index, :, :]
+            elif axis_map[axis] == 1:
+                data = self.data[:, slice_index, :]
+            elif axis_map[axis] == 2:
+                data = self.data[:, :, slice_index]
+        
+        else:
+            data = self.data
 
-            #self.figure.colorbar(im, ax=ax)  # Add a colorbar
-            # Add colorbar with title
-            cbar = self.figure.colorbar(im, ax=ax)
-            cbar.set_label(colorbar_title, fontsize=self.y_label_size_spin.value())
-
-            # Set labels with custom sizes
-            ax.set_xlabel(self.x_label_input.text() or "X-Axis", 
-                         fontsize=self.x_label_size_spin.value())
-            ax.set_ylabel(self.y_label_input.text() or "Y-Axis", 
-                         fontsize=self.y_label_size_spin.value())
-            
-            ax.set_title(self.title_input.text() or "2D Heatmap",
-                         fontsize=self.title_label_size_spin.value())
-
-        else: 
-            QMessageBox.warning(self, "Warning", "Dataset is not 2D")
+        # Check if data is 2D
+        if data.ndim != 2:
+            QMessageBox.warning(self, "Warning", 
+                            f"Cannot plot data with shape {data.shape}. Expected 2D array.")
             return
+
+        # Remove boundary layers/points
+        data = self.remove_boundary_layers( data )                                                               # 2D dataset
+            
+        # Get selected colormap
+        colormap = self.colormap_combobox.currentText()
+        scale = self.scale_combobox.currentText()
+        colorbar_title = self.colorbar_title_input.text() or "Value"
+
+        # Plot the data with the selected colormap and scale
+        if   scale == "Linear":
+            im = ax.imshow(data, cmap=colormap, origin='lower')                   
+        elif scale == "Log":  
+            im = ax.imshow(data, cmap=colormap, norm="log", origin='lower')    
+        else:
+            im = ax.imshow(data, cmap=colormap, norm=PowerNorm(gamma=0.7), origin='lower')
+
+        #self.figure.colorbar(im, ax=ax)  # Add a colorbar
+        # Add colorbar with title
+        cbar = self.figure.colorbar(im, ax=ax)
+        cbar.set_label(colorbar_title, fontsize=self.y_label_size_spin.value())
+
+        # Set labels with custom sizes
+        ax.set_xlabel(self.x_label_input.text() or "X-Axis", 
+                     fontsize=self.x_label_size_spin.value())
+        ax.set_ylabel(self.y_label_input.text() or "Y-Axis", 
+                     fontsize=self.y_label_size_spin.value())
+            
+        ax.set_title(self.title_input.text() or "2D Heatmap",
+                     fontsize=self.title_label_size_spin.value())
+
+        #else: 
+        #    QMessageBox.warning(self, "Warning", "Dataset is not 2D")
+        #    return
             
         # Refresh the canvas
         self.canvas.draw()
