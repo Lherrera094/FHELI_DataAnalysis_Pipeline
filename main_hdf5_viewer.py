@@ -18,9 +18,11 @@ import plotly.graph_objects as go
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, 
     QPushButton, QTreeWidget, QTreeWidgetItem, QFileDialog, QTextEdit, QLabel, 
-    QDialog, QFormLayout, QSpinBox, QDialogButtonBox, QComboBox, QLineEdit, QCheckBox, QDoubleSpinBox
+    QDialog, QFormLayout, QSpinBox, QDialogButtonBox, QComboBox, QLineEdit, QCheckBox, QDoubleSpinBox,
+    QStyle
 )
 
+from PyQt5.QtCore import Qt
 #import toolkits from files
 from plot_window import PlotWindow
 from operation_window import OperationWindow
@@ -55,6 +57,11 @@ class HDF5Viewer(QMainWindow):
         self.operation_button = QPushButton("Dataset Operations", self)
         self.operation_button.clicked.connect(self.open_operation_window)
         self.top_layout.addWidget(self.operation_button)
+
+        # Add this near the other button declarations in __init__
+        self.theory_button = QPushButton("Theoretical Analysis", self)
+        self.theory_button.clicked.connect(self.open_theory_window)
+        self.top_layout.addWidget(self.theory_button)
 
         # Add a stretch to push the buttons to the left
         self.top_layout.addStretch()
@@ -108,32 +115,24 @@ class HDF5Viewer(QMainWindow):
         with h5py.File(self.file_path, 'r') as file:
             self.populate_tree(file, self.tree_widget)
         
-
     def populate_tree(self, node, parent_item):
         """Recursively populate the tree widget with groups and datasets."""
         for name, item in node.items():
             if isinstance(item, h5py.Group):
-                # Add a group item
                 group_item = QTreeWidgetItem(parent_item, [name])
-                group_item.setData(0, 1, item.name)         # Store the full path of the group
-                self.populate_tree(item, group_item)        # Recursively add subgroups
+                group_item.setData(0, Qt.UserRole, item.name)  # Store path in UserRole
+                group_item.setIcon(0, self.style().standardIcon(QStyle.SP_DirIcon))
+                self.populate_tree(item, group_item)
+                
             elif isinstance(item, h5py.Dataset):
-                # Add a dataset item
                 dataset_item = QTreeWidgetItem(parent_item, [name])
-                dataset_item.setData(0, 1, item.name)       # Store the full path of the dataset
-
-                # Store single-value datasets for axis selection
-                if item.size == 1:
-                    self.single_value_datasets[item.name] = item[()]
-
-                # Check if the dataset is part of a time series
-                if name.startswith("E_abs__tint"):  # Example: "E_t_01", "E_t_02", etc.
-                    self.time_series_datasets.append(item.name)  # Store the dataset name
+                dataset_item.setData(0, Qt.UserRole, item.name)  # Store path in UserRole
+                dataset_item.setIcon(0, self.style().standardIcon(QStyle.SP_FileIcon))
 
     def on_item_clicked(self, item):
         """Handle clicking on a dataset or group in the tree widget."""
         # Get the full path of the selected item
-        full_path = item.data(0, 1)
+        full_path = item.data(0, Qt.UserRole)  # Get path from UserRole
 
         # Clear the previous value display
         self.value_display.clear()
@@ -142,6 +141,30 @@ class HDF5Viewer(QMainWindow):
         with h5py.File(self.file_path, 'r') as file:
             try:
                 hdf5_object = file[full_path]                                           # Access the object using its full path
+                
+                if isinstance(hdf5_object, h5py.Group):
+                    # Clear the current item's children (if any)
+                    item.takeChildren()
+
+                    # Repopulate with the group's contents
+                    self.populate_tree(hdf5_object, item)
+                    
+                    # Show group information
+                    info_text = f"=== Group Information ===\n"
+                    info_text += f"Path: {full_path}\n"
+                    info_text += f"Number of items: {len(hdf5_object)}\n"
+                    
+                    # Add attribute information if available
+                    if hdf5_object.attrs:
+
+                        # Repopulate with the group's contents
+                        self.populate_tree(hdf5_object, item)
+
+                        info_text += "\n=== Attributes ===\n"
+                        for attr_name, attr_value in hdf5_object.attrs.items():
+                            info_text += f"{attr_name}: {attr_value}\n"
+                    
+                    self.value_display.setText(info_text)
 
                 if isinstance(hdf5_object, h5py.Dataset):                               # Dataset
                     self.data = hdf5_object[()]
@@ -189,8 +212,8 @@ class HDF5Viewer(QMainWindow):
                     elif self.data.ndim == 3:                       # 3D dataset
                         self.show_3d_choice_dialog()                # Open slice dialog for 3D datasets
 
-                elif isinstance(hdf5_object, h5py.Group):  # Group
-                    self.value_display.setText("Selected Item is a Group (not a dataset).")
+                #elif isinstance(hdf5_object, h5py.Group):  # Group
+                    #self.value_display.setText("Selected Item is a Group (not a dataset).")
 
             except KeyError:
                 self.value_display.setText("Error: Unable to access the selected item.")
@@ -211,6 +234,13 @@ class HDF5Viewer(QMainWindow):
         self.plot_window.set_data(data, dataset_type)
         self.plot_window.show()
 
+#--------------------------------- Method to open the theoretical window --------------------------------------------
+    def open_theory_window(self):
+        """Open the theoretical analysis window."""
+        if not hasattr(self, 'theory_window'):
+            from theoretical_window import TheoreticalWindow
+            self.theory_window = TheoreticalWindow(self)
+        self.theory_window.show()
 
 #---------------------------------------Functions for 3D data sets---------------------------------------------------
     def launch_mayavi_script(self, dialog):
@@ -236,27 +266,8 @@ class HDF5Viewer(QMainWindow):
             json.dump(params, f)
         
         # Launch your Mayavi script
-        script_path = os.path.join(os.path.dirname(__file__), "your_mayavi_script.py")
+        script_path = os.path.join(os.path.dirname(__file__), "plot_mayavi.py")
         subprocess.Popen([sys.executable, script_path, params_path])
-
-    # Method to open the slice dialog for 3D and show in plot_window (not gif )
-    def open_slice_dialog(self, data):
-        """Open a dialog to select the axis and slice for 3D datasets."""
-        slice_dialog = SliceDialog(self)
-        slice_dialog.slice_spinbox.setMaximum(data.shape[2] - 1)  # Set max slice index
-        if slice_dialog.exec_() == QDialog.Accepted:
-            axis, slice_index = slice_dialog.get_parameters()
-
-            # Slice the 3D dataset
-            if axis == 0:
-                sliced_data = data[slice_index, :, :]
-            elif axis == 1:
-                sliced_data = data[:, slice_index, :]
-            elif axis == 2:
-                sliced_data = data[:, :, slice_index]
-
-            # Open the plot window with the sliced 2D data
-            self.open_plot_window(sliced_data, '2D')
 
     def show_3d_choice_dialog(self):
         """Let user choose between 2D slice or 3D visualization."""
@@ -291,7 +302,7 @@ class HDF5Viewer(QMainWindow):
     def show_3d_parameter_dialog(self):
         """Dialog to collect parameters for 3D visualization."""
         dialog = QDialog(self)
-        dialog.setWindowTitle("3D Visualization Parameters")
+        dialog.setWindowTitle("Visualization Parameters for Mayavi")
         layout = QFormLayout()
         
         # Add your parameter inputs here

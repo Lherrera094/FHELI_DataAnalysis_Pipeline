@@ -8,6 +8,8 @@ from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from matplotlib.colors import PowerNorm
+from matplotlib.colors import TwoSlopeNorm
+from matplotlib.colors import FuncNorm
 import matplotlib.pyplot as plt
 import numpy as np
 import h5py
@@ -25,13 +27,21 @@ class PlotWindow(QDialog):
 
         # Matplotlib canvas to show figure
         self.figure = Figure()
-        self.canvas = FigureCanvas(self.figure)
-        self.layout.addWidget(self.canvas)
+        self.canvas = FigureCanvas( self.figure )
+        self.layout.addWidget( self.canvas, stretch=3 )
 
         # Dataset list widget (for multi-dataset plotting)
         self.dataset_list = QListWidget(self)
         self.dataset_list.setSelectionMode(QAbstractItemView.MultiSelection)
         self.dataset_list.itemSelectionChanged.connect(self.on_dataset_selected)
+
+        # Set a fixed height for the list widget (e.g., 150 pixels)
+        self.dataset_list.setFixedHeight(70)  # Adjust this value as needed
+        self.dataset_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
+        
+        # Alternatively, set maximum height if you want it to be able to grow slightly
+        # self.dataset_list.setMaximumHeight(200)
+
         self.datasets_label = QLabel("Datasets:", self)  # Store as instance variable
         self.layout.addWidget(self.datasets_label)
         self.layout.addWidget(self.dataset_list)
@@ -209,7 +219,7 @@ class PlotWindow(QDialog):
         # Scale selection
         twoD_props_layout.addWidget(QLabel("Scale:"))
         self.scale_combobox = QComboBox(self)
-        self.scale_combobox.addItems( ["Linear", "Log", "PowerLaw"] )
+        self.scale_combobox.addItems( ["Linear", "Log", "PowerLaw", "Diverging", "Arcsinh"] )
         twoD_props_layout.addWidget(self.scale_combobox)
 
         # Add to form layout
@@ -412,7 +422,6 @@ class PlotWindow(QDialog):
             self.update_button.hide()
             self.remove_button.hide()
 
-
     def remove_boundary_layers(self, data):
         """Remove the specified number of layers/points from the boundaries of the dataset."""
         if self.data is None:
@@ -442,8 +451,8 @@ class PlotWindow(QDialog):
 
         return data
 
-    def add_dataset(self):
-        """Add a new dataset from the main window."""
+    """def add_dataset(self):
+        #Add a new dataset from the main window.
         if not self.parent_window or not self.parent_window.file_path:
             QMessageBox.warning(self, "Warning", "No HDF5 file loaded in main window")
             return
@@ -494,6 +503,63 @@ class PlotWindow(QDialog):
                         'style': default_style,
                         'label': default_label,
                         'width': default_width
+                    }
+                    
+                    # Add to list widget
+                    list_item = QListWidgetItem(name)
+                    list_item.setData(Qt.UserRole, name)  # Store the dataset name
+                    self.dataset_list.addItem(list_item)
+                    
+                except Exception as e:
+                    QMessageBox.warning(self, "Error", f"Couldn't load dataset {full_path}: {str(e)}")
+        
+        if self.datasets:
+            self.update_plot()"""
+    
+    def add_dataset(self):
+        """Add a new dataset from the main window."""
+        if not self.parent_window or not self.parent_window.file_path:
+            QMessageBox.warning(self, "Warning", "No HDF5 file loaded in main window")
+            return
+            
+        # Get selected items from main window tree
+        selected_items = self.parent_window.tree_widget.selectedItems()
+        if not selected_items:
+            QMessageBox.warning(self, "Warning", "No dataset selected in main window")
+            return
+            
+        with h5py.File(self.parent_window.file_path, 'r') as file:
+            for item in selected_items:
+                # Get the full path from the item's data (using UserRole)
+                full_path = item.data(0, Qt.UserRole)  # This is the critical fix
+                
+                if not full_path or not isinstance(full_path, str):
+                    QMessageBox.warning(self, "Warning", f"Invalid dataset path for item: {item.text(0)}")
+                    continue
+                    
+                try:
+                    dataset = file[full_path]
+                    if not isinstance(dataset, h5py.Dataset):
+                        QMessageBox.warning(self, "Warning", f"{full_path} is not a dataset")
+                        continue
+                        
+                    data = dataset[()]
+                    if data.ndim != 1:
+                        QMessageBox.warning(self, "Warning", f"Dataset {full_path} is not 1D (shape: {data.shape})")
+                        continue
+                        
+                    # Generate a unique name
+                    name = full_path.split('/')[-1]
+                    if name in self.datasets:
+                        name = f"{name}_{len(self.datasets)}"  # Append number if name exists
+                    
+                    # Add to our datasets with default styling
+                    self.datasets[name] = {
+                        'data': data,
+                        'color': self.line_color_combobox.currentText(),
+                        'style': self.line_style_combobox.currentText(),
+                        'label': self.legend_input.text() or name,
+                        'width': self.line_width.value()
                     }
                     
                     # Add to list widget
@@ -558,7 +624,7 @@ class PlotWindow(QDialog):
                     'x_scale': self.x_scale_combobox.currentText(),
                     'y_scale': self.y_scale_combobox.currentText()
                 })
-    
+
     def update_plot(self):
         """Update the plot with all datasets added to the list."""
         self.apply_customization()
@@ -655,10 +721,26 @@ class PlotWindow(QDialog):
             im = ax.imshow(data, cmap=colormap, origin='lower')                   
         elif scale == "Log":  
             im = ax.imshow(data, cmap=colormap, norm="log", origin='lower')    
-        else:
+        elif scale == "PowerLaw":
             im = ax.imshow(data, cmap=colormap, norm=PowerNorm(gamma=0.7), origin='lower')
+        elif scale == "Diverging":
+            try:
+                norm = TwoSlopeNorm(vmin=data.min(), vcenter=0, vmax=data.max())
+                im = ax.imshow(data, cmap=colormap, norm=norm, origin='lower')
+            except:
+                print("The minimum value, zero and maximum must be in ascending order.")
+                im = ax.imshow(data, cmap=colormap, origin='lower' )
+        else:
+            # Define the forward and inverse functions for the normalization
+            def forward(x):
+                return np.arcsinh(x * 1.0) / np.arcsinh(1.0)
+            
+            def inverse(x):
+                return np.sinh(x) / 1.0
+            
+            norm = FuncNorm( (forward, inverse), vmin=0, vmax=data.max() )
+            im = ax.imshow(data, cmap=colormap, norm=norm, origin='lower')
 
-        #self.figure.colorbar(im, ax=ax)  # Add a colorbar
         # Add colorbar with title
         cbar = self.figure.colorbar(im, ax=ax)
         cbar.set_label(colorbar_title, fontsize=self.y_label_size_spin.value())
@@ -672,9 +754,6 @@ class PlotWindow(QDialog):
         ax.set_title(self.title_input.text() or "2D Heatmap",
                      fontsize=self.title_label_size_spin.value())
 
-        #else: 
-        #    QMessageBox.warning(self, "Warning", "Dataset is not 2D")
-        #    return
             
         # Refresh the canvas
         self.canvas.draw()
