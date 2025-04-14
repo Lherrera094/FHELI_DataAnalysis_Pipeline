@@ -160,7 +160,7 @@ class HDF5Viewer(QMainWindow):
                         # Repopulate with the group's contents
                         self.populate_tree(hdf5_object, item)
 
-                        info_text += "\n=== Attributes ===\n"
+                        info_text += "\n=== Values ===\n"
                         for attr_name, attr_value in hdf5_object.attrs.items():
                             info_text += f"{attr_name}: {attr_value}\n"
                     

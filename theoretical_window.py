@@ -70,12 +70,12 @@ class TheoreticalWindow(QDialog):
         self.equation_combo = QComboBox()
         equations = [
             ("Plasma Parameters", "Calculates key plasma characteristics", 
-            {"n_e": "Electron density [m^-3]", "B": "Magnetic field [T]", 
-            "T_e": "Electron temperature [K]", "n_i": "Ion density [m^-3]"},
-            [] ),
-            ("n-B Diagram", "(3.83*k*B0)/(r0*w*μ0*e)",           # n-B Diagram
+            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", 
+             "B0": "Magnetic field [Norm.]", "N_i": "System size [g.p.]"},
+            ["f0","T_e"] ),
+            ("n-B Diagram", "(3.83*k*B0)/(r0*w*μ0*e)",                          # n-B Diagram
              {"T":"Period (grid points)", "r_0":"Ant. Radius"},
-             ["w", "k"]),                                   # Additional required parameters
+             ["f0", "k"]),                                                       # Additional required parameters
 
             ("Gaussian Pulse", "A*exp(-(x-x0)**2/(2*σ**2))", 
              {"A": "amplitude", "σ": "width", "x0": "center"},
@@ -172,7 +172,7 @@ class TheoreticalWindow(QDialog):
     def setup_plots_tab(self):
         """Setup the plots management tab."""
         self.plots_tab = QWidget()
-        self.tab_widget.addTab(self.plots_tab, "Manage Plots")
+        self.tab_widget.addTab(self.plots_tab, "Plot Managing")
         layout = QVBoxLayout(self.plots_tab)
         
         # Plot list
@@ -252,34 +252,65 @@ class TheoreticalWindow(QDialog):
                 return None
 
         # Get required parameters with defaults
-        n_e = self.extracted_vars.get('n_e', 1e16)  # m^-3
-        B = self.extracted_vars.get('B', 0.1)       # Tesla
-        T_e = self.extracted_vars.get('T_e', 10)    # eV
-        n_i = self.extracted_vars.get('n_i', n_e)   # m^-3
+        T =     self.extracted_vars.get('T', 100)                   # grid_periods
+        n_e =   self.extracted_vars.get('n_e', 1e16)                # m^-3
+        B =     self.extracted_vars.get('B', 0.1)                   # Tesla
+        n_i =   n_e                                                 # m^-3
         
+        #Convert normalized simulation values to real system
+        f0 =                self.parse_scientific_input(self.f0_input.text())
+        wavelenght =        sp.c/f0
+        grid_point_value =  wavelenght/T
+        m_to_gp =           T/wavelenght
+
+        Eq_n_e =            PHYSICAL_CONSTANTS['ε0']*PHYSICAL_CONSTANTS['me']*((2*np.pi*f0)**2) / (PHYSICAL_CONSTANTS['e']**2)
+        Eq_B0 =             PHYSICAL_CONSTANTS['me']*2*np.pi*f0 / PHYSICAL_CONSTANTS['e']
+
+        n_e =               n_e * Eq_n_e
+        B   =               B * Eq_B0
+
         # Convert T_e from eV to Kelvin
-        T_e_K = T_e * 11604.525  # 1 eV = 11604.525 K
+        T_e_K = T_e * 11604.525                                 # 1 eV = 11604.525 K
         
-        # Calculate plasma parameters
+        # Calculate all plasma parameters
         params = {
+            #Simulation parameters
+            'Grid_point_size':                  grid_point_value,
+            '1_m_to_gp':                        m_to_gp,
+            'Equivalent_n_e':                   Eq_n_e,
+            'Equivalent_B0':                    Eq_B0,
+
+            #Input parameters
+            'input_Antenna_frequency':          f0,
+            'input_Angular_frequency':          2*np.pi*f0,
+            'input_electron_density':           n_e,
+            'input_magnetic_field':             B,
+            'input_electron_temperature_eV':    T_e,
+            'input_electron_temperature_K':     T_e_K,
+            'input_ion_density':                n_i,
+
+            #Plasma parameters calculation
+            'plasma_frequency':                 np.sqrt((PHYSICAL_CONSTANTS['e']**2 * n_e) / 
+                                                    (PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['me'])),
+            'electron_cyclotron_frequency':     (PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['me'],
+            'ion_cyclotron_frequency':          (PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['mp'],
+            'debye_length':                     np.sqrt((PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['kB'] * T_e_K) / 
+                                                    (n_e * PHYSICAL_CONSTANTS['e']**2)),
+            'electron_plasma_beta':             (2 * PHYSICAL_CONSTANTS['μ0'] * n_e * PHYSICAL_CONSTANTS['kB'] * T_e_K) / (B**2),
+            'alfven_speed':                     B / np.sqrt(PHYSICAL_CONSTANTS['μ0'] * n_i * PHYSICAL_CONSTANTS['mp']),
+            'electron_thermal_velocity':        np.sqrt(2 * PHYSICAL_CONSTANTS['kB'] * T_e_K / PHYSICAL_CONSTANTS['me']),
+            'ion_thermal_velocity':             np.sqrt(2 * PHYSICAL_CONSTANTS['kB'] * T_e_K / PHYSICAL_CONSTANTS['mp']),
+            'plasma_parameter':                 (4/3) * np.pi * n_e * 
+                                                    (np.sqrt((PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['kB'] * T_e_K) / 
+                                                    (n_e * PHYSICAL_CONSTANTS['e']**2)))**3,
+
+            #Helicon parameters computations
             'plasma_frequency': np.sqrt((PHYSICAL_CONSTANTS['e']**2 * n_e) / 
                                     (PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['me'])),
             'electron_cyclotron_frequency': (PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['me'],
             'ion_cyclotron_frequency': (PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['mp'],
             'debye_length': np.sqrt((PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['kB'] * T_e_K) / 
-                                (n_e * PHYSICAL_CONSTANTS['e']**2)),
-            'electron_plasma_beta': (2 * PHYSICAL_CONSTANTS['μ0'] * n_e * PHYSICAL_CONSTANTS['kB'] * T_e_K) / (B**2),
-            'alfven_speed': B / np.sqrt(PHYSICAL_CONSTANTS['μ0'] * n_i * PHYSICAL_CONSTANTS['mp']),
-            'electron_thermal_velocity': np.sqrt(2 * PHYSICAL_CONSTANTS['kB'] * T_e_K / PHYSICAL_CONSTANTS['me']),
-            'ion_thermal_velocity': np.sqrt(2 * PHYSICAL_CONSTANTS['kB'] * T_e_K / PHYSICAL_CONSTANTS['mp']),
-            'plasma_parameter': (4/3) * np.pi * n_e * 
-                            (np.sqrt((PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['kB'] * T_e_K) / 
-                            (n_e * PHYSICAL_CONSTANTS['e']**2)))**3,
-            'input_electron_density': n_e,
-            'input_magnetic_field': B,
-            'input_electron_temperature_eV': T_e,
-            'input_electron_temperature_K': T_e_K,
-            'input_ion_density': n_i
+                                (n_e * PHYSICAL_CONSTANTS['e']**2))
         }
         
         return params
@@ -291,9 +322,8 @@ class TheoreticalWindow(QDialog):
         result_text += "<tr><th>Parameter</th><th>Value</th><th>Units</th></tr>"
         
         units_map = {
-            'plasma_frequency': 'rad/s',
-            'electron_cyclotron_frequency': 'rad/s',
-            'ion_cyclotron_frequency': 'rad/s',
+            'plasma_frequency': '1/s',
+            'electron_cyclotron_frequency': '1/s',
             'debye_length': 'm',
             'electron_plasma_beta': '',
             'alfven_speed': 'm/s',
@@ -427,7 +457,7 @@ class TheoreticalWindow(QDialog):
         
         # Update equation display with LaTeX formatting
         latex_equations = {
-            "Plasma Parameters": r"$\omega_p, \omega_c, \lambda_D, \beta, v_A$ etc.",
+            "Plasma Parameters": r"$\omega_p, \omega_c, \lambda_D, \beta, v_A$.",
             "n-B Diagram": r"$n = \frac{3.83 \cdot k \cdot B_0}{r_0 \cdot \omega}$",
             "Gaussian Pulse": r"$A e^{-\frac{(x-x_0)^2}{2\sigma^2}}$",
             "Sinusoidal Wave": r"$A \sin(2\pi f x)$",
@@ -444,23 +474,15 @@ class TheoreticalWindow(QDialog):
         self.variable_widgets = {}
         self.manual_params = {}
         default_paths = {
+            "N_i":  "config/N_x",
             "N_x":  "config/N_x",
             "N_y":  "config/N_y",
             "N_z":  "config/N_z",
             "T":    "config/period",
             "r_0":  "config/ant_radius",
             "L_0":  "config/ant_lenght",
-            "A":    "config/amplitude",
-            "σ":    "config/width",
-            "x0":   "config/center",
-            "f":    "config/frequency",
-            "τ":    "config/decay_time",
-            "γ":    "config/width",
-            "k":    "config/wavenumber",
             "n_e":  "n_e",
-            "B0":   "B0z",
-            "T_e":  "plasma/electron_temperature",
-            "n_i":  "plasma/ion_density"
+            "B0":   "B0z"
         }
         
         for var, desc in eq_info["var_map"].items():
@@ -490,17 +512,22 @@ class TheoreticalWindow(QDialog):
         
         # Add equation-specific parameters
         for param in eq_info["required_params"]:
-            if param == "w":
-                self.w_input = QLineEdit()
-                self.w_input.setValidator(QDoubleValidator())
-                self.w_input.setText("1e9")  # Default 1 GHz in scientific notation
+            if param == "f0":
+                self.f0_input = QLineEdit()
+                self.f0_input.setValidator(QDoubleValidator())
+                self.f0_input.setText("1e9")  # Default 1 GHz in scientific notation
                 #self.param_layout.addRow("Frequency (ω) [Hz]:", self.w_input)
-                self.param_layout.addRow("Frequency (f0) [Hz]:", self.w_input)
+                self.param_layout.addRow("Frequency (f0) [Hz]:", self.f0_input)
             elif param == "k":
                 self.k_input = QLineEdit()
                 self.k_input.setValidator(QDoubleValidator())
                 self.k_input.setText("1e3")  # Default 1e3 m^-1 in scientific notation
                 self.param_layout.addRow("Wavenumber (k) [m⁻¹]:", self.k_input)
+            elif param == "T_e":
+                self.Te_input = QLineEdit()
+                self.Te_input.setValidator(QDoubleValidator())
+                self.Te_input.setText("1")  # Default 1e3 m^-1 in scientific notation
+                self.param_layout.addRow("Electron Temperature (T_e) [eV]:", self.Te_input)
             elif param == "x_min":
                 self.x_min = QLineEdit()
                 self.x_min.setValidator(QDoubleValidator())
@@ -576,10 +603,8 @@ class TheoreticalWindow(QDialog):
                                     value = obj[()]
                                 else:
                                     # For multi-value datasets, extract max if small enough
-                                    if obj.size <= 1000000:  # Limit to 1M elements for memory
-                                        value = np.max(obj[()])
-                                    else:
-                                        raise ValueError("Dataset too large for max extraction")
+                                    value = np.max(obj[()])
+                                    
                                 self.extracted_vars[var] = float(value)
                             else:
                                 raise ValueError(f"{path} is not a dataset")
@@ -653,7 +678,7 @@ class TheoreticalWindow(QDialog):
             
             # Add equation-specific parameters
             if eq_name == "n-B Diagram":
-                context['w'] = self.parse_scientific_input(self.w_input.text())
+                context['w'] = self.parse_scientific_input(self.f0_input.text())
                 context['k'] = self.parse_scientific_input(self.k_input.text())
             
             # Add extracted variables
