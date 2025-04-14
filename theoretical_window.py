@@ -15,17 +15,17 @@ from datetime import datetime
 
 # Physical constants (SI units)
 PHYSICAL_CONSTANTS = {
-    'c': 2.99792458e8,        # Speed of light [m/s]
-    'μ0': 4*np.pi*1e-7,       # Vacuum permeability [N/A²]
-    'ε0': 8.8541878128e-12,   # Vacuum permittivity [F/m]
-    'e': 1.602176634e-19,     # Elementary charge [C]
-    'me': 9.1093837015e-31,   # Electron mass [kg]
-    'mp': 1.67262192369e-27,  # Proton mass [kg]
-    'h': 6.62607015e-34,      # Planck constant [J·s]
-    'ħ': 1.054571817e-34,     # Reduced Planck constant [J·s]
-    'kB': 1.380649e-23,       # Boltzmann constant [J/K]
-    'NA': 6.02214076e23,      # Avogadro constant [1/mol]
-    'G': 6.67430e-11          # Gravitational constant [N·m²/kg²]
+    'c':    2.99792458e8,           # Speed of light [m/s]
+    'μ0':   4*np.pi*1e-7,           # Vacuum permeability [N/A²]
+    'ε0':   8.8541878128e-12,       # Vacuum permittivity [F/m]
+    'e':    1.602176634e-19,        # Elementary charge [C]
+    'me':   9.1093837015e-31,       # Electron mass [kg]
+    'mp':   1.67262192369e-27,      # Proton mass [kg]
+    'h':    6.62607015e-34,         # Planck constant [J·s]
+    'ħ':    1.054571817e-34,        # Reduced Planck constant [J·s]
+    'kB':   1.380649e-23,           # Boltzmann constant [J/K]
+    'NA':   6.02214076e23,          # Avogadro constant [1/mol]
+    'G':    6.67430e-11             # Gravitational constant [N·m²/kg²]
 }
 
 class TheoreticalWindow(QDialog):
@@ -71,7 +71,7 @@ class TheoreticalWindow(QDialog):
         equations = [
             ("Plasma Parameters", "Calculates key plasma characteristics", 
             {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", 
-             "B0": "Magnetic field [Norm.]", "N_i": "System size [g.p.]"},
+             "B0": "Magnetic field [Norm.]", "N_i": "System size [g.p.]",},
             ["f0","T_e"] ),
             ("n-B Diagram", "(3.83*k*B0)/(r0*w*μ0*e)",                          # n-B Diagram
              {"T":"Period (grid points)", "r_0":"Ant. Radius"},
@@ -132,7 +132,7 @@ class TheoreticalWindow(QDialog):
         self.eq_scroll_layout.addLayout(self.top_button_layout)
         
         # Parameter input section - will be populated dynamically
-        self.param_group = QGroupBox("Plot Parameters")
+        self.param_group = QGroupBox("User input parameters")
         self.param_layout = QFormLayout()
         self.param_group.setLayout(self.param_layout)
         self.eq_scroll_layout.addWidget(self.param_group)
@@ -151,13 +151,9 @@ class TheoreticalWindow(QDialog):
         # Action buttons
         self.action_buttons = QHBoxLayout()
         
-        self.add_button = QPushButton("Add New Theory Plot")
+        self.add_button = QPushButton("Compute/Add Plot")
         self.add_button.clicked.connect(self.add_theory_plot)
         self.action_buttons.addWidget(self.add_button)
-        
-        self.plot_button = QPushButton("Preview Current Plot")
-        self.plot_button.clicked.connect(self.preview_plot)
-        self.action_buttons.addWidget(self.plot_button)
         
         self.clear_button = QPushButton("Clear Parameters")
         self.clear_button.clicked.connect(self.clear_parameters)
@@ -254,40 +250,42 @@ class TheoreticalWindow(QDialog):
         # Get required parameters with defaults
         T =     self.extracted_vars.get('T', 100)                   # grid_periods
         n_e =   self.extracted_vars.get('n_e', 1e16)                # m^-3
-        B =     self.extracted_vars.get('B', 0.1)                   # Tesla
-        n_i =   n_e                                                 # m^-3
+        B =     self.extracted_vars.get('B0', 0.1)                  # Tesla
         
         #Convert normalized simulation values to real system
         f0 =                self.parse_scientific_input(self.f0_input.text())
         wavelenght =        sp.c/f0
+        ang_f =             2*np.pi*f0
         grid_point_value =  wavelenght/T
-        m_to_gp =           T/wavelenght
+        space_resolution =  (T/2)/wavelenght
 
-        Eq_n_e =            PHYSICAL_CONSTANTS['ε0']*PHYSICAL_CONSTANTS['me']*((2*np.pi*f0)**2) / (PHYSICAL_CONSTANTS['e']**2)
-        Eq_B0 =             PHYSICAL_CONSTANTS['me']*2*np.pi*f0 / PHYSICAL_CONSTANTS['e']
+        Eq_n_e =            PHYSICAL_CONSTANTS['ε0']*PHYSICAL_CONSTANTS['me']*((ang_f)**2) / (PHYSICAL_CONSTANTS['e']**2)
+        Eq_B0 =             PHYSICAL_CONSTANTS['me']*ang_f / PHYSICAL_CONSTANTS['e']
 
-        n_e =               n_e * Eq_n_e
-        B   =               B * Eq_B0
+        n_e =               n_e * Eq_n_e                            # m^-3
+        n_i =   n_e                                                 # m^-3
+        B   =               B * Eq_B0                               # T
 
         # Convert T_e from eV to Kelvin
-        T_e_K = T_e * 11604.525                                 # 1 eV = 11604.525 K
+        T_e =               self.parse_scientific_input(self.Te_input.text())
+        T_e_K =             T_e * 11604.525                                     # 1 eV = 11604.525 K
         
         # Calculate all plasma parameters
         params = {
             #Simulation parameters
             'Grid_point_size':                  grid_point_value,
-            '1_m_to_gp':                        m_to_gp,
-            'Equivalent_n_e':                   Eq_n_e,
+            'Spatial Resolution':               space_resolution,
+            'Equivalent_ne':                    Eq_n_e,
             'Equivalent_B0':                    Eq_B0,
 
             #Input parameters
             'input_Antenna_frequency':          f0,
-            'input_Angular_frequency':          2*np.pi*f0,
-            'input_electron_density':           n_e,
-            'input_magnetic_field':             B,
-            'input_electron_temperature_eV':    T_e,
-            'input_electron_temperature_K':     T_e_K,
-            'input_ion_density':                n_i,
+            'input_Angular_frequency':          ang_f,
+            'input_Electron_density':           n_e,
+            'input_Magnetic_field':             B,
+            'input_Electron_temperature_eV':    T_e,
+            'input_Electron_temperature_K':     T_e_K,
+            'input_Ion_density':                n_i,
 
             #Plasma parameters calculation
             'plasma_frequency':                 np.sqrt((PHYSICAL_CONSTANTS['e']**2 * n_e) / 
@@ -305,12 +303,12 @@ class TheoreticalWindow(QDialog):
                                                     (n_e * PHYSICAL_CONSTANTS['e']**2)))**3,
 
             #Helicon parameters computations
-            'plasma_frequency': np.sqrt((PHYSICAL_CONSTANTS['e']**2 * n_e) / 
-                                    (PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['me'])),
-            'electron_cyclotron_frequency': (PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['me'],
-            'ion_cyclotron_frequency': (PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['mp'],
-            'debye_length': np.sqrt((PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['kB'] * T_e_K) / 
-                                (n_e * PHYSICAL_CONSTANTS['e']**2))
+            'helicon_k_H':                      ang_f*PHYSICAL_CONSTANTS['μ0']*PHYSICAL_CONSTANTS['me']*n_e / B,
+            'helicon_k_TG':                     ang_f / ((PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['me']),
+            'helicon_k_max':                    PHYSICAL_CONSTANTS['e']*np.sqrt(PHYSICAL_CONSTANTS['μ0']*n_e*ang_f / 
+                                                    (PHYSICAL_CONSTANTS['e']*B - PHYSICAL_CONSTANTS['me']*ang_f) ),
+            'helicon_k_min':                    (2*ang_f)*np.sqrt(PHYSICAL_CONSTANTS['μ0']*PHYSICAL_CONSTANTS['me']*n_e) / B
+            
         }
         
         return params
@@ -322,14 +320,22 @@ class TheoreticalWindow(QDialog):
         result_text += "<tr><th>Parameter</th><th>Value</th><th>Units</th></tr>"
         
         units_map = {
-            'plasma_frequency': '1/s',
+            'plasma_frequency':             '1/s',
             'electron_cyclotron_frequency': '1/s',
-            'debye_length': 'm',
-            'electron_plasma_beta': '',
-            'alfven_speed': 'm/s',
-            'electron_thermal_velocity': 'm/s',
-            'ion_thermal_velocity': 'm/s',
-            'plasma_parameter': ''
+            'debye_length':                 'm',
+            'electron_plasma_beta':         '',
+            'alfven_speed':                 'm/s',
+            'electron_thermal_velocity':    'm/s',
+            'ion_thermal_velocity':         'm/s',
+            'plasma_parameter':             '',
+            'Grid_point_size':              'm',
+            'Spatial Resolution':           'g.p.',
+            'Equivalent_ne':                'm^3',
+            'Equivalent_B0':                'T',
+            'helicon_k_H':                  '1/m',
+            'helicon_k_TG':                 '1/m',
+            'helicon_k_max':                '1/m',
+            'helicon_k_min':                '1/m'
         }
         
         for name, value in params.items():
@@ -355,10 +361,12 @@ class TheoreticalWindow(QDialog):
         
         # Add input parameters
         result_text += "<h4>Input Parameters</h4><ul>"
-        result_text += f"<li>Electron density: {params['input_electron_density']:.4e} m⁻³</li>"
-        result_text += f"<li>Magnetic field: {params['input_magnetic_field']:.4g} T</li>"
-        result_text += f"<li>Electron temperature: {params['input_electron_temperature_eV']:.4g} eV ({params['input_electron_temperature_K']:.4g} K)</li>"
-        result_text += f"<li>Ion density: {params['input_ion_density']:.4e} m⁻³</li>"
+        result_text += f"<li>Electron density:\t    {params['input_Electron_density']:.4e} m⁻³</li>"
+        result_text += f"<li>Magnetic field:\t      {params['input_Magnetic_field']:.4g} T</li>"
+        result_text += f"<li>Electron temperature:\t{params['input_Electron_temperature_eV']:.4g} eV ({params['input_Electron_temperature_K']:.4g} K)</li>"
+        result_text += f"<li>Ion density:\t         {params['input_Ion_density']:.4e} m⁻³</li>"
+        result_text += f"<li>Antenna frequency:\t   {params['input_Antenna_frequency']:.4e} Hz</li>"
+        result_text += f"<li>Angular frequency:\t   {params['input_Angular_frequency']:.4e} 1/s</li>"
         result_text += "</ul>"
         
         # Create dialog
@@ -399,26 +407,38 @@ class TheoreticalWindow(QDialog):
         try:
             with h5py.File(self.parent_window.file_path, 'a') as file:
                 # Create or clear existing group
-                if 'plasma_parameters' in file:
+                if 'Plasma_parameters' in file:
+                    del file['Plasma_parameters']
+                elif 'plasma_parameters' in file:
                     del file['plasma_parameters']
                 
                 # Create new group and subgroups
-                plasma_group = file.create_group('plasma_parameters')
-                results_group = plasma_group.create_group('calculated_parameters')
-                inputs_group = plasma_group.create_group('input_parameters')
+                plasma_group = file.create_group('Plasma_parameters')
+                inputs_group = plasma_group.create_group('Input_values')
+                results_group = plasma_group.create_group('Main_plasma_parameters')
+                helicon_group = plasma_group.create_group('Helicon_parameters')
                 
                 # Save calculated parameters
                 for name, value in params.items():
                     if name.startswith('input_'):
-                        continue  # Skip input parameters here
+                        continue                        # Skip input parameters here
+                    elif name.startswith('helicon_'):
+                        continue                        # Skip input parameters here
                     results_group.attrs[name] = value
                 
                 # Save input parameters
-                inputs_group.attrs['electron_density'] = params['input_electron_density']
-                inputs_group.attrs['magnetic_field'] = params['input_magnetic_field']
-                inputs_group.attrs['electron_temperature_eV'] = params['input_electron_temperature_eV']
-                inputs_group.attrs['electron_temperature_K'] = params['input_electron_temperature_K']
-                inputs_group.attrs['ion_density'] = params['input_ion_density']
+                inputs_group.attrs['Electron_density'] =        params['input_Electron_density']
+                inputs_group.attrs['Magnetic_field'] =          params['input_Magnetic_field']
+                inputs_group.attrs['Electron_temperature_eV'] = params['input_Electron_temperature_eV']
+                inputs_group.attrs['Electron_temperature_K'] =  params['input_Electron_temperature_K']
+                inputs_group.attrs['Ion_density'] =             params['input_Ion_density']
+                inputs_group.attrs['Antenna_frequency'] =       params['input_Antenna_frequency']
+                inputs_group.attrs['Angular_frequency'] =       params['input_Angular_frequency']
+
+                helicon_group.attrs['k_H'] =                    params['helicon_k_H']
+                helicon_group.attrs['k_TG'] =                   params['helicon_k_TG']
+                helicon_group.attrs['k_max'] =                  params['helicon_k_max']
+                helicon_group.attrs['k_min'] =                  params['helicon_k_min']
                 
                 return True
                 
@@ -427,16 +447,42 @@ class TheoreticalWindow(QDialog):
             return False
 
     def parse_scientific_input(self, text):
-        """Parse a string input that could be in scientific notation"""
+        """Parse a string input that could be in scientific notation with decimals"""
+        text = text.strip().lower()
+        
+        # Handle empty string
+        if not text:
+            return 0.0
+            
+        # Replace common alternative representations
+        text = (text.replace(' ', '')
+                .replace('×10', 'e')
+                .replace('x10', 'e')
+                .replace('*10', 'e')
+                .replace('^', 'e'))
+        
+        # Handle cases like "1.23e+5" or "1.23e5"
         try:
             return float(text)
         except ValueError:
-            # Try to handle cases like "1.23 x 10^5" if needed
-            text = text.lower().replace(' ', '').replace('x', '*').replace('^', 'e')
+            # Try to handle more complex cases if needed
             try:
-                return float(text)
+                # Handle cases where 'e' might be missing (like "1.23+5")
+                if '+' in text and 'e' not in text:
+                    mantissa, exponent = text.split('+')
+                    return float(mantissa) * (10 ** float(exponent))
+                elif '-' in text and 'e' not in text and text[0] != '-':
+                    mantissa, exponent = text.split('-')
+                    return float(mantissa) * (10 ** -float(exponent))
             except:
-                return 0.0  # Default value if parsing fails
+                if hasattr(self, 'last_focused_input'):
+                    self.last_focused_input.setStyleSheet("background-color: #ffdddd;")
+                return 0.0
+                
+        # If all parsing fails, return 0.0 or show a warning
+        QMessageBox.warning(self, "Input Error", 
+                        f"Could not parse input value: {text}\nUsing 0.0 instead.")
+        return 0.0
 
     def update_equation_ui(self):
         """Update the UI based on the selected equation."""
@@ -515,7 +561,7 @@ class TheoreticalWindow(QDialog):
             if param == "f0":
                 self.f0_input = QLineEdit()
                 self.f0_input.setValidator(QDoubleValidator())
-                self.f0_input.setText("1e9")  # Default 1 GHz in scientific notation
+                self.f0_input.setText("1.0e9")  # Default 1 GHz in scientific notation
                 #self.param_layout.addRow("Frequency (ω) [Hz]:", self.w_input)
                 self.param_layout.addRow("Frequency (f0) [Hz]:", self.f0_input)
             elif param == "k":
@@ -765,7 +811,7 @@ class TheoreticalWindow(QDialog):
         
         # Add equation-specific parameters to plot info
         if eq_name == "n-B Diagram":
-            plot_info["frequency"] = self.parse_scientific_input(self.w_input.text())
+            plot_info["frequency"] = self.parse_scientific_input(self.f0_input.text())
             plot_info["wavenumber"] = self.parse_scientific_input(self.k_input.text())
         elif eq_name in ["Gaussian Pulse", "Sinusoidal Wave", "Exponential Decay", "Plane Wave"]:
             plot_info["x_min"] = self.parse_scientific_input(self.x_min.text())
@@ -813,49 +859,7 @@ class TheoreticalWindow(QDialog):
             info_text += f"<b>X range:</b> {plot.get('x_min', 'N/A')} to {plot.get('x_max', 'N/A')}<br>"
         
         self.plot_info_label.setText(info_text)
-    
-    def preview_plot(self):
-        """Preview the current theoretical plot without saving."""
-        # First extract parameters if needed
-        if not hasattr(self, 'extracted_vars') or not self.extracted_vars:
-            self.extract_variables_from_hdf5()
-            if not hasattr(self, 'extracted_vars') or not self.extracted_vars:
-                QMessageBox.warning(self, "Error", "No parameters extracted or entered")
-                return
-        
-        # Generate the plot data
-        x = self.generate_x_values()
-        y = self.evaluate_equation(x)
-        
-        # Create or reuse plot window
-        if not hasattr(self, 'plot_window') or self.plot_window is None:
-            from plot_window import PlotWindow
-            self.plot_window = PlotWindow(self.parent_window)
-        
-        # Store the data in plot_window's dataset
-        self.plot_window.data = y
-        self.plot_window.dataset_type = '1D'
-        
-        # Clear previous datasets
-        self.plot_window.datasets = {}
-        self.plot_window.dataset_list.clear()
-        
-        # Add theoretical curve
-        eq_name = self.equation_combo.currentText()
-        theory_name = f"Preview: {eq_name}"
-        self.plot_window.datasets[theory_name] = {
-            'data': y,
-            'color': 'blue',
-            'style': '-',
-            'label': theory_name,
-            'width': 2
-        }
-        
-        # Configure and show plot window
-        self.plot_window.set_data(y, '1D')
-        self.plot_window.update_plot()
-        self.plot_window.show()
-    
+
     def plot_selected(self):
         """Plot the selected theory plots."""
         selected = self.plot_list_widget.selectedItems()

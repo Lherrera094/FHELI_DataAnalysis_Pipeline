@@ -162,7 +162,10 @@ class HDF5Viewer(QMainWindow):
 
                         info_text += "\n=== Values ===\n"
                         for attr_name, attr_value in hdf5_object.attrs.items():
-                            info_text += f"{attr_name}: {attr_value}\n"
+                            if "electron_cyclotron" in attr_name:
+                                info_text += f"{attr_name}:\t {attr_value:.3e}\n"
+                            else:
+                                info_text += f"{attr_name}:\t\t {attr_value:.3e}\n"
                     
                     self.value_display.setText(info_text)
 
