@@ -95,7 +95,7 @@ class HDF5Viewer(QMainWindow):
         self.single_value_datasets = {}                     # Stores single-value datasets for axis selection
         self.plot_window = None                             # Sub-window for plotting
         self.time_series_datasets = []                      # Stores time-series datasets for GIF creation
-        self.operation_window = None                        # NEW: Sub-window for dataset operations
+        self.operation_window = None                        # Sub-window for dataset operations
 
     def load_file(self):
         """Open a file dialog to load an HDF5 file."""
@@ -162,10 +162,8 @@ class HDF5Viewer(QMainWindow):
 
                         info_text += "\n=== Values ===\n"
                         for attr_name, attr_value in hdf5_object.attrs.items():
-                            if "electron_cyclotron" in attr_name:
-                                info_text += f"{attr_name}:\t {attr_value:.3e}\n"
-                            else:
-                                info_text += f"{attr_name}:\t\t {attr_value:.3e}\n"
+                            
+                            info_text += f"{attr_name}:\t\t {attr_value:.3e}\n"
                     
                     self.value_display.setText(info_text)
 
@@ -177,6 +175,14 @@ class HDF5Viewer(QMainWindow):
                     info_text += f"Dimensions: {self.data.ndim}\n"
                     info_text += f"Size: {self.data.size} elements\n"
                     info_text += f"Data type: {self.data.dtype}\n"
+
+                    # Check if this is a theory plot dataset
+                    is_theory_plot = False
+                    if (self.data.ndim == 2 and self.data.shape[1] == 2 and 
+                        'columns' in hdf5_object.attrs and 
+                        list(hdf5_object.attrs['columns']) == ['x', 'y']):
+                        is_theory_plot = True
+                        info_text += "\nType: Theory Plot (x,y) dataset\n"
                     
                     # Display the values
                     if self.data.size == 1:                                             # Single value
@@ -208,15 +214,16 @@ class HDF5Viewer(QMainWindow):
                     self.value_display.setText(info_text)
 
                     # Open the plot window for 1D or 2D datasets
+                    if is_theory_plot:
+                        # For theory plots, extract just the y values for display
+                        # (or we could pass both x and y to be handled specially)
+                        self.open_plot_window(self.data[:, 1], '1D')  # Just plot y values
                     if self.data.ndim == 1:                         # 1D dataset
                         self.open_plot_window(self.data, '1D')
                     elif self.data.ndim == 2:                       # 2D dataset
                         self.open_plot_window(self.data, '2D')
                     elif self.data.ndim == 3:                       # 3D dataset
                         self.show_3d_choice_dialog()                # Open slice dialog for 3D datasets
-
-                #elif isinstance(hdf5_object, h5py.Group):  # Group
-                    #self.value_display.setText("Selected Item is a Group (not a dataset).")
 
             except KeyError:
                 self.value_display.setText("Error: Unable to access the selected item.")
@@ -234,7 +241,13 @@ class HDF5Viewer(QMainWindow):
         """Open the plot window for 1D or 2D datasets."""
         if not self.plot_window:
             self.plot_window = PlotWindow(self)
-        self.plot_window.set_data(data, dataset_type)
+        
+        # For theory plots, pass the full (x,y) data but still mark as '1D'
+        if isinstance(data, np.ndarray) and data.ndim == 2 and data.shape[1] == 2:
+            self.plot_window.set_data(data, '1D')  # Special handling in plot window
+        else:
+            self.plot_window.set_data(data, dataset_type)
+        
         self.plot_window.show()
 
 #--------------------------------- Method to open the theoretical window --------------------------------------------
