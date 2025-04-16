@@ -636,7 +636,7 @@ class PlotWindow(QDialog):
             safe_set_enabled(self.line_width, False)
 
             # Only enable for regular datasets
-            if 'type' not in dataset:
+            if dataset.get('type') == 'theory' or 'type' not in dataset:
                 safe_set_enabled(self.line_color_combobox, True)
                 safe_set_enabled(self.line_style_combobox, True)
                 safe_set_enabled(self.legend_input, True)
@@ -660,7 +660,7 @@ class PlotWindow(QDialog):
         selected_items = self.dataset_list.selectedItems()
         if not selected_items or len(selected_items) != 1:
             return
-            
+
         for item in selected_items:
             name = item.data(Qt.UserRole)
             if name in self.datasets:
@@ -850,6 +850,7 @@ class PlotWindow(QDialog):
                     label=dataset['label'],
                     linewidth=dataset['width']
                 )
+            
             elif 'type' not in dataset:                         # Regular 1D dataset
                 data = dataset['data']
                 
