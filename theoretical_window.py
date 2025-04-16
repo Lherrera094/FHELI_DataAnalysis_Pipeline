@@ -1,6 +1,7 @@
 #Plot theoretical equations 
 
 import scipy.constants as sp
+import scipy.special as sc
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QPushButton, QComboBox, 
     QLabel, QLineEdit, QSpinBox, QDoubleSpinBox, QGroupBox, QCheckBox, QMessageBox,
@@ -72,55 +73,45 @@ class TheoreticalWindow(QDialog):
         self.equation_combo = QComboBox()
         equations = [
             ("Plasma Parameters", "Calculates key plasma characteristics",                  # Plasma parameters
-            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", 
-             "B0": "Magnetic field [Norm.]", "N_i": "System size [g.p.]",},
-            ["f0","T_e"] ),
+            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]", 
+             "N_i": "System size [g.p.]",},
+             ["f0","T_e","m"],  False ),
 
+            #Series of functions for helicon waves
             ("k-beta Curve", "(delta/beta)*(beta**2 + K_s**2)",                             # k-beta curves
-            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", 
-             "B0": "Magnetic field [Norm.]"},
-            [ ] ), 
+            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
+            [ ],            False ), 
 
-            ("k_max", "sqrt(delta/1-delta)*k_s",                                            # Maximum value of K
-            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", 
-             "B0": "Magnetic field [Norm.]"},
-            [ ] ),
+            ("k_boundaries", "Computes boundary values for k eigenvalue",                   # Maximum value of K
+            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
+            [ ],            True ),
 
-            ("k_min", "2*delta*k_s",                                                        # Maximum value of K
-            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", 
-             "B0": "Magnetic field [Norm.]"},
-            [ ] ),
-
-            ("k_boundaries", "2*delta*k_s , sqrt(delta/1-delta)*k_s",                       # Maximum value of K
-            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", 
-             "B0": "Magnetic field [Norm.]"},
-            [ ] ),
-
-            ("n-B Diagram", "(3.83*k*B0)/(r0*w*μ0*e)",                                      # n-B Diagram
-             {"T":"Period (grid points)", "r_0":"Ant. Radius"},
-             ["f0", "k"]),                                                       
+            ("k_eigenvalues(cond.)", "Finds the k eigenvalues for helicon waves in conduncting boundaries", 
+            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
+            [ ],            True ),
 
             ("Gaussian Pulse", "A*exp(-(x-x0)**2/(2*σ**2))", 
              {"A": "amplitude", "σ": "width", "x0": "center"},
-             ["x_min", "x_max"]),
+             ["x_min", "x_max"], True),
             ("Sinusoidal Wave", "A*sin(2π*f*x)", 
              {"A": "amplitude", "f": "frequency"},
-             ["x_min", "x_max"]),
+             ["x_min", "x_max"], True),
             ("Exponential Decay", "A*exp(-x/τ)", 
              {"A": "amplitude", "τ": "decay_time"},
-             ["x_min", "x_max"]),
+             ["x_min", "x_max"], True),
             ("Plane Wave", "A*exp(1j*k*x)", 
              {"A": "amplitude", "k": "wavenumber"},
-             ["x_min", "x_max"])
+             ["x_min", "x_max"], True)
         ]
         
         self.equation_info = {}
-        for name, formula, var_map, req_params in equations:
+        for name, formula, var_map, req_params, multi_ds in equations:
             self.equation_combo.addItem(name)
             self.equation_info[name] = {
                 "formula": formula, 
                 "var_map": var_map,
-                "required_params": req_params
+                "required_params": req_params,
+                "multi_dataset": multi_ds
             }
         
         self.equation_combo.currentTextChanged.connect(self.update_equation_ui)
@@ -549,9 +540,8 @@ class TheoreticalWindow(QDialog):
         latex_equations = {
             "Plasma Parameters":    r"$\omega_p, \omega_c, \lambda_D, \beta, v_A$.",
             "k-beta Curve":         r"$\frac{\delta/\beta}\cdot{(\beta^2+k_s^2)}$",
-            "k_max":                r"$sqrt(delta/(1-delta)) * k_s$",
-            "k_min":                r"$2 * delta * k_s$",
             "k_boundaries" :        r"$2 * delta * k_s$ , $sqrt(delta/(1-delta)) * k_s$",
+            "k_eigenvalues(cond.)": r"$Helicon_set_equation(conduct.)$",
             "n-B Diagram":          r"$n = \frac{3.83 \cdot k \cdot B_0}{r_0 \cdot \omega}$",
             "Gaussian Pulse":       r"$A e^{-\frac{(x-x_0)^2}{2\sigma^2}}$",
             "Sinusoidal Wave":      r"$A \sin(2\pi f x)$",
@@ -744,17 +734,17 @@ class TheoreticalWindow(QDialog):
             beta_1 = 500                    # wavenumber
             return np.linspace(beta_0, beta_1, 3001)
         
-        elif eq_name == "k_max":
+        elif eq_name == "k_boundaries":
             # For k_max, plot is made against the frequency value.
             w0 = 0                           # frequency (Hz)
             w1 = 60000000                    # frequency (Hz)
             return np.linspace(w0, w1, 50000)
-
-        elif eq_name == "k_min":
+        
+        elif eq_name == "k_eigenvalues(cond.)":
             # For k_max, plot is made against the frequency value.
-            w0 = 0                           # frequency (Hz)
-            w1 = 60000000                    # frequency (Hz)
-            return np.linspace(w0, w1, 50000)
+            ki = 0.1                           # frequency (Hz)
+            kf = 0.8                    # frequency (Hz)
+            return np.linspace(ki, kf, 1000)
         
         elif eq_name == "n-B Diagram":
             # For n-B diagram, we might want to plot against frequency
@@ -768,7 +758,7 @@ class TheoreticalWindow(QDialog):
     def evaluate_equation(self, x):
         """Safely evaluate the selected equation at given x values."""
         eq_name = self.equation_combo.currentText()
-        #eq_info = self.equation_info[eq_name]
+        eq_info = self.equation_info[eq_name]
 
         try:
             if eq_name == "Plasma Parameters":
@@ -783,30 +773,28 @@ class TheoreticalWindow(QDialog):
                 k =     (delta / x) * ( x**2 + (self.plasma_params["plasma_frequency"]/PHYSICAL_CONSTANTS["c"])**2 )
                 return k
             
-            elif eq_name == "k_max":
-                # For n-B diagram, we might want to plot against frequency
-                delta = x / self.plasma_params["electron_cyclotron_frequency"]
-                k_max =     np.sqrt( delta / (1 - delta) ) * (self.plasma_params["plasma_frequency"]/PHYSICAL_CONSTANTS["c"]) 
-                return k_max
-
-            elif eq_name == "k_min":
-                # For n-B diagram, we might want to plot against frequency
-                delta = x / self.plasma_params["electron_cyclotron_frequency"]
-                k_min =     2 * delta * (self.plasma_params["plasma_frequency"]/PHYSICAL_CONSTANTS["c"]) 
-                return k_min
-            
             elif eq_name == "k_boundaries":
                 # For n-B diagram, we might want to plot against frequency
-                delta = x / self.plasma_params["electron_cyclotron_frequency"]
+                delta =     x / self.plasma_params["electron_cyclotron_frequency"]
                 k_min =     2 * delta * (self.plasma_params["plasma_frequency"]/PHYSICAL_CONSTANTS["c"]) 
                 k_max =     np.sqrt( delta / (1 - delta) ) * (self.plasma_params["plasma_frequency"]/PHYSICAL_CONSTANTS["c"])
-                return {k_min, k_max}
+                return {"k_min": k_min, "k_max": k_max}
+            
+            elif eq_name == "k_eigenvalues(cond.)":
+                # For n-B diagram, we might want to plot against frequency
+                beta_1 =    self.plasma_params["helicon_k_H"] / x
+                beta_2 =    x / self.plasma_params["helicon_k_TG"]
+                T_1    =    np.sqrt( beta_1**2 - x**2 )
+                T_2    =    np.sqrt( beta_2**2 - x**2 )
+                LHS =       (beta_1 + x) + (beta_1 - x)
+                RHS =       ( (beta_2 + x) + (beta_2 - x) ) * (beta_1*T_1 / (beta_2*T_2) )
+                return {"LHS": LHS, "RHS": RHS}
         
         except Exception as e:
             QMessageBox.warning(self, "Error", 
                 f"Could not evaluate {eq_name} equation: {str(e)}\n"
-                f"Formula: {formula}\n"
-                f"Context keys: {list(context.keys())}"
+                f"Formula: {eq_info}\n"
+                #f"Context keys: {list(context.keys())}"
             )
             return np.zeros_like(x)
     
@@ -832,7 +820,7 @@ class TheoreticalWindow(QDialog):
             return
         
         # Check if this equation produces multiple datasets
-        if eq_info.get("multi_dataset", False) and isinstance(result, dict):
+        if eq_info.get("multi_dataset", False) and isinstance(y, dict):
             # For multiple datasets, get a base name from user
             dialog = QDialog(self)
             dialog.setWindowTitle("Name Your Plots")
@@ -842,7 +830,7 @@ class TheoreticalWindow(QDialog):
             layout.addWidget(label)
             
             name_input = QLineEdit()
-            default_name = f"{eq_name}_analysis"
+            default_name = f"{eq_name}_"
             name_input.setText(default_name)
             layout.addWidget(name_input)
             
@@ -861,7 +849,7 @@ class TheoreticalWindow(QDialog):
                 base_name = default_name
 
             # Create plot info for each dataset
-            for curve_name, y in result.items():
+            for curve_name, y_i in y.items():
                 full_name = f"{base_name}_{curve_name}"
                 
                 if any(p["name"] == full_name for p in self.theory_plots):
@@ -873,73 +861,73 @@ class TheoreticalWindow(QDialog):
                     "equation": eq_name,
                     "formula": f"{eq_info['formula']} ({curve_name})",
                     "x": x,
-                    "y": y,
+                    "y": y_i,
                     "params": dict(self.extracted_vars),
                     "curve_type": curve_name
                 }
                 
                 self.theory_plots.append(plot_info)
                 
-            QMessageBox.information(self, "Success", f"Added {len(result)} plots to collection")
+            QMessageBox.information(self, "Success", f"Added {len(y)} plots to collection")
+
+        else:    
+            # For all other equations, get plot name from user
+            dialog = QDialog(self)
+            dialog.setWindowTitle("Name Your Plot")
+            layout = QVBoxLayout()
             
-        # For all other equations, get plot name from user
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Name Your Plot")
-        layout = QVBoxLayout()
-        
-        label = QLabel("Enter a name for this plot:")
-        layout.addWidget(label)
-        
-        name_input = QLineEdit()
-        default_name = f"{self.equation_combo.currentText()}_(user_identifier)"
-        name_input.setText(default_name)
-        layout.addWidget(name_input)
-        
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(dialog.accept)
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-        
-        dialog.setLayout(layout)
-        
-        if dialog.exec_() != QDialog.Accepted:
-            return  # User cancelled
-        
-        plot_name = name_input.text().strip()
-        if not plot_name:
-            plot_name = default_name
+            label = QLabel("Enter a name for this plot:")
+            layout.addWidget(label)
+            
+            name_input = QLineEdit()
+            default_name = f"{self.equation_combo.currentText()}_(user_identifier)"
+            name_input.setText(default_name)
+            layout.addWidget(name_input)
+            
+            buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            buttons.accepted.connect(dialog.accept)
+            buttons.rejected.connect(dialog.reject)
+            layout.addWidget(buttons)
+            
+            dialog.setLayout(layout)
+            
+            if dialog.exec_() != QDialog.Accepted:
+                return  # User cancelled
+            
+            plot_name = name_input.text().strip()
+            if not plot_name:
+                plot_name = default_name
 
-        if any(p["name"] == plot_name for p in self.theory_plots):
-            QMessageBox.warning(self, "Warning", "A plot with this name already exists!")
-            return
+            if any(p["name"] == plot_name for p in self.theory_plots):
+                QMessageBox.warning(self, "Warning", "A plot with this name already exists!")
+                return
 
-        # Create plot info
-        formula = self.equation_info[eq_name]["formula"]
-        
-        plot_info = {
-            "name": plot_name,
-            "equation": eq_name,
-            "formula": formula,
-            "x": x,
-            "y": y,
-            "params": dict(self.extracted_vars)
-        }
-        
-        # Add equation-specific parameters to plot info
-        if eq_name == "n-B Diagram":
-            plot_info["frequency"] = self.parse_scientific_input(self.f0_input.text())
-            plot_info["wavenumber"] = self.parse_scientific_input(self.k_input.text())
-        elif eq_name in ["Gaussian Pulse", "Sinusoidal Wave", "Exponential Decay", "Plane Wave"]:
-            plot_info["x_min"] = self.parse_scientific_input(self.x_min.text())
-            plot_info["x_max"] = self.parse_scientific_input(self.x_max.text())
+            # Create plot info
+            formula = self.equation_info[eq_name]["formula"]
+            
+            plot_info = {
+                "name": plot_name,
+                "equation": eq_name,
+                "formula": formula,
+                "x": x,
+                "y": y,
+                "params": dict(self.extracted_vars)
+            }
+            
+            # Add equation-specific parameters to plot info
+            if eq_name == "n-B Diagram":
+                plot_info["frequency"] = self.parse_scientific_input(self.f0_input.text())
+                plot_info["wavenumber"] = self.parse_scientific_input(self.k_input.text())
+            elif eq_name in ["Gaussian Pulse", "Sinusoidal Wave", "Exponential Decay", "Plane Wave"]:
+                plot_info["x_min"] = self.parse_scientific_input(self.x_min.text())
+                plot_info["x_max"] = self.parse_scientific_input(self.x_max.text())
 
-        # Add to our list
-        self.theory_plots.append(plot_info)
+            # Add to our list
+            self.theory_plots.append(plot_info)
+            QMessageBox.information(self, "Success", f"Plot '{plot_name}' added to collection")
         
         # Update plot list
         self.update_plot_list()
-        
-        QMessageBox.information(self, "Success", f"Plot '{plot_name}' added to collection")
     
     def update_plot_list(self):
         """Update the list of saved theory plots."""

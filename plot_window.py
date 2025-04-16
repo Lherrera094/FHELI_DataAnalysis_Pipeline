@@ -316,133 +316,91 @@ class PlotWindow(QDialog):
         self.adjusted_data =    data                                # Initialize adjusted_data with the original data
         self.dataset_type =     dataset_type
 
-        # Show/hide axis selection based on dataset type
+        # Show/hide controls based on dataset type
         if self.dataset_type == '1D':
-            # Show features in plot_window for 1D plots
-            # Show only left and right removal for 1D datasets
-            self.boundary_layout.addWidget(self.left_points)
-            self.boundary_layout.addWidget(self.leftp_spinbox)
-            self.boundary_layout.addWidget(self.right_points)
-            self.boundary_layout.addWidget(self.rightp_spinbox)
-
-            self.left_points.show()
-            self.leftp_spinbox.show()
-            self.right_points.show()
-            self.rightp_spinbox.show()
-
-            # In the 1D section of set_data:
-            self.x_scale_label.show()
-            self.x_scale_combobox.show()
-            self.y_scale_label.show()
-            self.y_scale_combobox.show()
-
-            # Show line color, line style, and legend options for 1D plots
-            self.line_props_container.show()
-            self.form_layout.labelForField(self.legend_input).show()
-            self.legend_input.show()
-            self.datasets_label.show()
-            self.dataset_list.show()
-
-            self.add_button.show()
-            self.update_button.show()
-            self.remove_button.show()
-            self.add_points_button.show()
-            self.add_line_button.show()
-
-            # Hide features of 2D plots
-            # Hide top and bottom removal for 1D datasets
-            self.top_label.hide()
-            self.top_spinbox.hide()
-            self.bottom_label.hide()
-            self.bottom_spinbox.hide()
-            self.left_label.hide()
-            self.left_spinbox.hide()
-            self.right_label.hide()
-            self.right_spinbox.hide()
-
-            #3D slice controls
-            self.threeD_props_container.hide()
-            self.form_layout.labelForField(self.threeD_props_container).hide()
-            self.slice_label.hide()
-            self.slice_spinbox.hide()
-
-            self.twoD_props_container.hide()
-            self.form_layout.labelForField(self.twoD_props_container).hide()
-            self.colorbar_title_input.hide()
-            self.form_layout.labelForField(self.colorbar_title_input).hide()
-            self.form_layout.labelForField(self.colorbar_title_input).hide()
-            self.colorbar_title_input.hide()
-
-            self.plot_button.hide()
-
-        else:                                             # '2D'
-            # Show features in plot_window for 2D plots
-            # Show top, bottom, left, and right removal for 2D datasets
-            self.boundary_layout.addWidget(self.top_label)
-            self.boundary_layout.addWidget(self.top_spinbox)
-            self.boundary_layout.addWidget(self.bottom_label)
-            self.boundary_layout.addWidget(self.bottom_spinbox)
-            self.boundary_layout.addWidget(self.left_label)
-            self.boundary_layout.addWidget(self.left_spinbox)
-            self.boundary_layout.addWidget(self.right_label)
-            self.boundary_layout.addWidget(self.right_spinbox)
-
-            # Hide top and bottom removal for 1D datasets
-            self.top_label.show()
-            self.top_spinbox.show()
-            self.bottom_label.show()
-            self.bottom_spinbox.show()
-            self.left_label.show()
-            self.left_spinbox.show()
-            self.right_label.show()
-            self.right_spinbox.show()
-
-            if self.dataset_type == "3D":
-                #3D slice controls
-                self.threeD_props_container.show()
-                self.form_layout.labelForField(self.threeD_props_container).show()
-                self.slice_label.show()
-                self.slice_spinbox.show()
-            else:
-                #3D slice controls
-                self.threeD_props_container.hide()
-                self.form_layout.labelForField(self.threeD_props_container).hide()
-                self.slice_label.hide()
-                self.slice_spinbox.hide()
-
+            # Show 1D controls
+            self.show_1d_controls()
+        else:  # '2D' or '3D'
             # Show 2D controls
-            self.twoD_props_container.show()
-            self.form_layout.labelForField(self.twoD_props_container).show()
-            self.colorbar_title_input.show()
-            self.form_layout.labelForField(self.colorbar_title_input).show()
-            self.form_layout.labelForField(self.colorbar_title_input).show()
-            self.colorbar_title_input.show()
+            self.show_2d_controls()
 
-            self.plot_button.show()
+    def show_1d_controls(self):
+        """Show controls for 1D plotting."""
+        # Show line properties and legend controls
+        self.line_props_container.show()
+        self.form_layout.labelForField(self.legend_input).show()
+        self.legend_input.show()
+        self.datasets_label.show()
+        self.dataset_list.show()
+        
+        # Show scale controls
+        self.x_scale_label.show()
+        self.x_scale_combobox.show()
+        self.y_scale_label.show()
+        self.y_scale_combobox.show()
+        
+        # Show action buttons
+        self.add_button.show()
+        self.update_button.show()
+        self.remove_button.show()
+        self.add_points_button.show()
+        self.add_line_button.show()
+        
+        # Hide 2D-specific controls
+        self.hide_2d_controls()
 
-            self.left_points.hide()
-            self.leftp_spinbox.hide()
-            self.right_points.hide()
-            self.rightp_spinbox.hide()
+    def show_2d_controls(self):
+        """Show controls for 2D plotting."""
+        # Show 2D-specific controls
+        self.top_label.show()
+        self.top_spinbox.show()
+        self.bottom_label.show()
+        self.bottom_spinbox.show()
+        self.left_label.show()
+        self.left_spinbox.show()
+        self.right_label.show()
+        self.right_spinbox.show()
+        self.twoD_props_container.show()
+        self.form_layout.labelForField(self.twoD_props_container).show()
+        self.colorbar_title_input.show()
+        self.form_layout.labelForField(self.colorbar_title_input).show()
+        self.plot_button.show()
+        
+        # Hide 1D-specific controls
+        self.hide_1d_controls()
 
-            # In the 2D section of set_data:
-            self.x_scale_label.hide()
-            self.x_scale_combobox.hide()
-            self.y_scale_label.hide()
-            self.y_scale_combobox.hide()
+    def hide_1d_controls(self):
+        """Hide controls for 1D plotting."""
+        self.line_props_container.hide()
+        self.form_layout.labelForField(self.legend_input).hide()
+        self.legend_input.hide()
+        self.datasets_label.hide()
+        self.dataset_list.hide()
+        self.x_scale_label.hide()
+        self.x_scale_combobox.hide()
+        self.y_scale_label.hide()
+        self.y_scale_combobox.hide()
+        self.add_button.hide()
+        self.update_button.hide()
+        self.remove_button.hide()
+        self.add_points_button.hide()
+        self.add_line_button.hide()
 
-            # Hide line color, line style, and legend options for 2D plots
-            self.line_props_container.hide()
-            self.form_layout.labelForField(self.legend_input).hide()
-            self.legend_input.hide()
-            self.datasets_label.hide()
-            self.dataset_list.hide()
-
-            self.add_button.hide()
-            self.update_button.hide()
-            self.remove_button.hide()
-            self.add_points_button.hide()
-            self.add_line_button.hide()
+    def hide_2d_controls(self):
+        """Hide controls for 2D plotting."""
+        self.top_label.hide()
+        self.top_spinbox.hide()
+        self.bottom_label.hide()
+        self.bottom_spinbox.hide()
+        self.left_label.hide()
+        self.left_spinbox.hide()
+        self.right_label.hide()
+        self.right_spinbox.hide()
+        self.twoD_props_container.hide()
+        self.form_layout.labelForField(self.twoD_props_container).hide()
+        self.colorbar_title_input.hide()
+        self.form_layout.labelForField(self.colorbar_title_input).hide()
+        self.plot_button.hide()
 
     def remove_boundary_layers(self, data):
         """Remove the specified number of layers/points from the boundaries of the dataset."""
