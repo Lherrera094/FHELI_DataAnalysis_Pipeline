@@ -345,6 +345,11 @@ class PlotWindow(QDialog):
         self.remove_button.show()
         self.add_points_button.show()
         self.add_line_button.show()
+
+        self.left_points.show()
+        self.leftp_spinbox.show()
+        self.right_points.show()
+        self.rightp_spinbox.show()
         
         # Hide 2D-specific controls
         self.hide_2d_controls()
@@ -385,6 +390,10 @@ class PlotWindow(QDialog):
         self.remove_button.hide()
         self.add_points_button.hide()
         self.add_line_button.hide()
+        self.left_points.hide()
+        self.leftp_spinbox.hide()
+        self.right_points.hide()
+        self.rightp_spinbox.hide()
 
     def hide_2d_controls(self):
         """Hide controls for 2D plotting."""
