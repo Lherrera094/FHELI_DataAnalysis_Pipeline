@@ -13,6 +13,8 @@ from matplotlib.figure import Figure
 from matplotlib.colors import PowerNorm
 from matplotlib.colors import TwoSlopeNorm
 from matplotlib.colors import FuncNorm
+from matplotlib.backend_bases import MouseButton
+from matplotlib.widgets import RectangleSelector
 import matplotlib.pyplot as plt
 import numpy as np
 import h5py
@@ -33,6 +35,12 @@ class PlotWindow(QDialog):
         self.canvas = FigureCanvas( self.figure )
         self.layout.addWidget( self.canvas, stretch=4 )
 
+        # Add a status bar for mouse position display
+        self.status_bar = QLabel(self)
+        self.status_bar.setAlignment(Qt.AlignRight)
+        self.status_bar.setStyleSheet("QLabel { background-color : white; }")
+        self.layout.addWidget(self.status_bar)
+
         # Dataset list widget (for multi-dataset plotting)
         self.dataset_list = QListWidget(self)
         self.dataset_list.setSelectionMode(QAbstractItemView.MultiSelection)
@@ -42,9 +50,7 @@ class PlotWindow(QDialog):
         self.dataset_list.setFixedHeight(70)  # Adjust this value as needed
         self.dataset_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
 
-        self.datasets_label = QLabel("Datasets:", self)  # Store as instance variable
-        self.layout.addWidget(self.datasets_label)
-        self.layout.addWidget(self.dataset_list)
+        self.layout.addWidget(self.dataset_list)                    # Store as instance variable
 
         # Form layout for plot title and axis labels
         self.form_layout = QFormLayout()
@@ -259,7 +265,7 @@ class PlotWindow(QDialog):
         self.right_spinbox.setMaximum(200)
         self.boundary_layout.addWidget(self.right_spinbox)
 
-#Shared controls for 1D and 2D
+#-------------------------------------------- Shared controls for 1D and 2D --------------------------------------------------
         # Plot button (includes boundary removal functionality). It's used for 2D datasets
         self.plot_button = QPushButton("2D Plot", self)
         self.plot_button.clicked.connect(self.twoD_plot)
@@ -310,6 +316,9 @@ class PlotWindow(QDialog):
         self.current_plots =    {}                                  # Track currently plotted datasets
         self.parent_window =    parent                              # Reference to main window
 
+        # Connect mouse events
+        self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
+
     def set_data(self, data, dataset_type):
         """Set the dataset to be plotted and its type (1D, 2D or 3D slice)."""
         self.data =             data
@@ -330,7 +339,6 @@ class PlotWindow(QDialog):
         self.line_props_container.show()
         self.form_layout.labelForField(self.legend_input).show()
         self.legend_input.show()
-        self.datasets_label.show()
         self.dataset_list.show()
         
         # Show scale controls
@@ -386,7 +394,6 @@ class PlotWindow(QDialog):
         self.line_props_container.hide()
         self.form_layout.labelForField(self.legend_input).hide()
         self.legend_input.hide()
-        self.datasets_label.hide()
         self.dataset_list.hide()
         self.x_scale_label.hide()
         self.x_scale_combobox.hide()
@@ -980,3 +987,22 @@ class PlotWindow(QDialog):
 
         # Save the plot
         self.figure.savefig(file_path, dpi = 1200)
+
+# ----------------------------------------------- Mouse Motion track and activity------------------------------------------------
+
+    def on_mouse_move(self, event):
+        """Display mouse position in status bar."""
+        if event.inaxes and self.figure.axes:
+            ax = self.figure.axes[0]
+            x, y = event.xdata, event.ydata
+                
+            # Format coordinates based on axis scale
+            x_fmt = "{:.3g}".format(x)
+            y_fmt = "{:.3g}".format(y)
+                
+            if ax.get_xscale() == 'log':
+                x_fmt = "10^{:.3g}".format(np.log10(x))
+            if ax.get_yscale() == 'log':
+                y_fmt = "10^{:.3g}".format(np.log10(y))
+                    
+            self.status_bar.setText(f"x: {x_fmt}, y: {y_fmt}")

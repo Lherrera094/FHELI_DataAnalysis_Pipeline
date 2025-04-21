@@ -2,6 +2,7 @@
 
 import scipy.constants as sp
 import scipy.special as sc
+
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QPushButton, QComboBox, 
     QLabel, QLineEdit, QSpinBox, QDoubleSpinBox, QGroupBox, QCheckBox, QMessageBox,
@@ -74,7 +75,7 @@ class TheoreticalWindow(QDialog):
         equations = [
             ("Plasma Parameters", "Calculates key plasma characteristics",                  # Plasma parameters
             {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]", 
-             "N_i": "System size [g.p.]",},
+             "N_i": "System size [g.p.]","r_a":"Antenna radius [g.p.]", "L_a":"Antenna Lenght [g.p.]"},
              ["f0","T_e","m"],  False ),
 
             #Series of functions for helicon waves
@@ -90,18 +91,22 @@ class TheoreticalWindow(QDialog):
             {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
             [ ],            True ),
 
+            ("B_components(cond.)", "B_", 
+            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
+            [ ],            True ),
+
             ("Gaussian Pulse", "A*exp(-(x-x0)**2/(2*σ**2))", 
              {"A": "amplitude", "σ": "width", "x0": "center"},
-             ["x_min", "x_max"], True),
+             ["x_min", "x_max"], False),
             ("Sinusoidal Wave", "A*sin(2π*f*x)", 
              {"A": "amplitude", "f": "frequency"},
-             ["x_min", "x_max"], True),
+             ["x_min", "x_max"], False),
             ("Exponential Decay", "A*exp(-x/τ)", 
              {"A": "amplitude", "τ": "decay_time"},
-             ["x_min", "x_max"], True),
+             ["x_min", "x_max"], False),
             ("Plane Wave", "A*exp(1j*k*x)", 
              {"A": "amplitude", "k": "wavenumber"},
-             ["x_min", "x_max"], True)
+             ["x_min", "x_max"], False)
         ]
         
         self.equation_info = {}
@@ -267,6 +272,9 @@ class TheoreticalWindow(QDialog):
         T =     self.extracted_vars.get('T', 100)                   # grid_periods
         n_e =   self.extracted_vars.get('n_e', 1e16)                # m^-3
         B =     self.extracted_vars.get('B0', 0.1)                  # Tesla
+        r_a =   self.extracted_vars.get('r_a', 0.1)                 # grid points
+        L_a =   self.extracted_vars.get('L_a', 0.1)                 # grid points
+        m =     self.extracted_vars.get('m', 0)                     # Antenna mode
         
         #Convert normalized simulation values to real system
         f0 =                self.parse_scientific_input(self.f0_input.text())
@@ -275,8 +283,11 @@ class TheoreticalWindow(QDialog):
         grid_point_value =  wavelenght/T
         space_resolution =  (T/2)/wavelenght
 
-        Eq_n_e =            PHYSICAL_CONSTANTS['ε0']*PHYSICAL_CONSTANTS['me']*((ang_f)**2) / (PHYSICAL_CONSTANTS['e']**2)
-        Eq_B0 =             PHYSICAL_CONSTANTS['me']*ang_f / PHYSICAL_CONSTANTS['e']
+        r_a =               r_a*grid_point_value
+        L_a =               L_a*grid_point_value
+        m =                 self.parse_scientific_input(self.m_input.text())
+        Eq_n_e =            sp.epsilon_0 * sp.m_e * ((ang_f)**2) / (sp.e**2)
+        Eq_B0 =             sp.m_e * ang_f / sp.e
 
         n_e =               n_e * Eq_n_e                            # m^-3
         n_i =               n_e                                     # m^-3
@@ -293,40 +304,41 @@ class TheoreticalWindow(QDialog):
             'Spatial_resolution':               space_resolution,
             'Equivalent_ne':                    Eq_n_e,
             'Equivalent_B0':                    Eq_B0,
+            'Antenna_radius':                   r_a,
+            'Antenna_lenght':                   L_a,
+            'm':                                m,
 
             #Input parameters
-            'input_Antenna_frequency':          f0,
-            'input_Angular_frequency':          ang_f,
-            'input_Electron_density':           n_e,
-            'input_Magnetic_field':             B,
-            'input_Electron_temperature_eV':    T_e,
-            'input_Electron_temperature_K':     T_e_K,
-            'input_Ion_density':                n_i,
+            'Antenna_frequency':                f0,
+            'Angular_frequency':                ang_f,
+            'Electron_density':                 n_e,
+            'Magnetic_field':                   B,
+            'Electron_temperature_eV':          T_e,
+            'Electron_temperature_K':           T_e_K,
+            'Ion_density':                      n_i,
 
             #Plasma parameters calculation
-            'plasma_frequency':                 np.sqrt((PHYSICAL_CONSTANTS['e']**2 * n_e) / 
-                                                    (PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['me'])),
-            'electron_cyclotron_frequency':     (PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['me'],
-            'ion_cyclotron_frequency':          (PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['mp'],
-            'debye_length':                     np.sqrt((PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['kB'] * T_e_K) / 
-                                                    (n_e * PHYSICAL_CONSTANTS['e']**2)),
-            'electron_plasma_beta':             (2 * PHYSICAL_CONSTANTS['μ0'] * n_e * PHYSICAL_CONSTANTS['kB'] * T_e_K) / (B**2),
-            'alfven_speed':                     B / np.sqrt(PHYSICAL_CONSTANTS['μ0'] * n_i * PHYSICAL_CONSTANTS['mp']),
-            'electron_thermal_velocity':        np.sqrt(2 * PHYSICAL_CONSTANTS['kB'] * T_e_K / PHYSICAL_CONSTANTS['me']),
-            'ion_thermal_velocity':             np.sqrt(2 * PHYSICAL_CONSTANTS['kB'] * T_e_K / PHYSICAL_CONSTANTS['mp']),
-            'plasma_parameter':                 (4/3) * np.pi * n_e * 
-                                                    (np.sqrt((PHYSICAL_CONSTANTS['ε0'] * PHYSICAL_CONSTANTS['kB'] * T_e_K) / 
-                                                    (n_e * PHYSICAL_CONSTANTS['e']**2)))**3,
+            'plasma_frequency':                 np.sqrt((sp.e**2 * n_e) / (sp.epsilon_0 * sp.m_e)),
+            'electron_cyclotron_frequency':     (sp.e * B) / sp.m_e,
+            'ion_cyclotron_frequency':          (sp.e * B) / sp.m_p,
+            'debye_length':                     np.sqrt((sp.epsilon_0 * sp.k * T_e_K) / (n_e * sp.e**2)),
+            'electron_plasma_beta':             (2 * sp.mu_0 * n_e * sp.k * T_e_K) / (B**2),
+            'alfven_speed':                     B / np.sqrt(sp.mu_0 * n_i * sp.m_p),
+            'electron_thermal_velocity':        np.sqrt(2 * sp.k * T_e_K / sp.m_e),
+            'ion_thermal_velocity':             np.sqrt(2 * sp.k * T_e_K / sp.m_p),
+            'plasma_parameter':                 (4/3) * np.pi * n_e * (np.sqrt((sp.epsilon_0 * sp.k * T_e_K) / 
+                                                    (n_e * sp.e**2)))**3,
 
             #Helicon parameters computations
-            'helicon_k_H':                      ang_f*PHYSICAL_CONSTANTS['μ0']*PHYSICAL_CONSTANTS['e']*n_e / B,
-            'helicon_lambd_H':                  B / (ang_f*PHYSICAL_CONSTANTS['μ0']*PHYSICAL_CONSTANTS['e']*n_e),
-            'helicon_k_TG':                     ang_f / ((PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['me']),
-            'helicon_lambd_TG':                 ((PHYSICAL_CONSTANTS['e'] * B) / PHYSICAL_CONSTANTS['me']) / ang_f,
-            'helicon_k_max':                    PHYSICAL_CONSTANTS['e']*np.sqrt(PHYSICAL_CONSTANTS['μ0']*n_e*ang_f / 
-                                                    (PHYSICAL_CONSTANTS['e']*B - PHYSICAL_CONSTANTS['me']*ang_f) ),
-            'helicon_k_min':                    (2*ang_f)*np.sqrt(PHYSICAL_CONSTANTS['μ0']*PHYSICAL_CONSTANTS['me']*n_e) / B
-        }
+            'k_w':                              ang_f * sp.mu_0 * sp.e * n_e / B,               #whistler wavenumber
+            'delta':                            ang_f / ((sp.e * B) / sp.m_e),                  #TG wavenumber
+            'k_max':                            sp.e * np.sqrt(sp.mu_0 * n_e *ang_f / (sp.e*B - sp.m_e*ang_f) ),
+            'k_min':                            (2*ang_f)*np.sqrt(sp.mu_0 * sp.m_e*n_e) / B,
+            'beta_H':                           ang_f * sp.mu_0 * sp.e * n_e / (B*L_a),
+            'beta_TG':                          L_a/(ang_f / ((sp.e * B) / sp.m_e)),
+            'T_H':                              (ang_f * sp.mu_0 * sp.e * n_e / (B*L_a))**2 - L_a**2,
+            'T_TG':                             np.sqrt( (L_a/(ang_f / ((sp.e * B) / sp.m_e)))**2 - L_a**2)
+        }        
         
         return params
     
@@ -353,12 +365,16 @@ class TheoreticalWindow(QDialog):
             'Spatial Resolution':           'g.p.',
             'Equivalent_ne':                'm^-3',
             'Equivalent_B0':                'T',
-            'helicon_k_H':                  '1/m',
-            'helicon_lambd_H':              'm',
-            'helicon_k_TG':                 '1/m',
-            'helicon_lambd_TG':             'm',
-            'helicon_k_max':                '1/m',
-            'helicon_k_min':                '1/m'
+            'k_w':                          'm^2',
+            'delta':                        '',
+            'k_max':                        '1/m',
+            'k_min':                        '1/m',
+            'beta_H':                       'm',
+            'beta_TG':                      'm',
+            'T_H':                          'm',
+            'T_TG':                         'm',
+            'Antenna_radius':               'm',
+            'Antenna_lenght':               'm'
         }
         
         for name, value in params.items():
@@ -384,12 +400,12 @@ class TheoreticalWindow(QDialog):
         
         # Add input parameters
         result_text += "<h4>Input Parameters</h4><ul>"
-        result_text += f"<li>Electron density:\t    {params['input_Electron_density']:.4e} m⁻³</li>"
-        result_text += f"<li>Magnetic field:\t      {params['input_Magnetic_field']:.4g} T</li>"
-        result_text += f"<li>Electron temperature:\t{params['input_Electron_temperature_eV']:.4g} eV ({params['input_Electron_temperature_K']:.4g} K)</li>"
-        result_text += f"<li>Ion density:\t         {params['input_Ion_density']:.4e} m⁻³</li>"
-        result_text += f"<li>Antenna frequency:\t   {params['input_Antenna_frequency']:.4e} Hz</li>"
-        result_text += f"<li>Angular frequency:\t   {params['input_Angular_frequency']:.4e} 1/s</li>"
+        result_text += f"<li>Electron density:\t    {params['Electron_density']:.4e} m⁻³</li>"
+        result_text += f"<li>Magnetic field:\t      {params['Magnetic_field']:.4g} T</li>"
+        result_text += f"<li>Electron temperature:\t{params['Electron_temperature_eV']:.4g} eV ({params['Electron_temperature_K']:.4g} K)</li>"
+        result_text += f"<li>Ion density:\t         {params['Ion_density']:.4e} m⁻³</li>"
+        result_text += f"<li>Antenna frequency:\t   {params['Antenna_frequency']:.4e} Hz</li>"
+        result_text += f"<li>Angular frequency:\t   {params['Angular_frequency']:.4e} 1/s</li>"
         result_text += "</ul>"
         
         # Create dialog
@@ -438,7 +454,7 @@ class TheoreticalWindow(QDialog):
                 inputs_group =          plasma_group.create_group('Input_values')
                 results_group =         plasma_group.create_group('Main_plasma')
                 helicon_group =         plasma_group.create_group('Helicon')
-                simulation_group =     plasma_group.create_group('Simulation_values')
+                simulation_group =      plasma_group.create_group('Simulation_values')
                 
                 # Save main plasma values
                 results_group.attrs['Plasma_frequency [s^-1]'] =                params['plasma_frequency']
@@ -452,27 +468,32 @@ class TheoreticalWindow(QDialog):
                 results_group.attrs['plasma_parameter'] =                       params['plasma_parameter']
 
                 # Save Input parameters
-                inputs_group.attrs['Electron_density [m^-3]'] =                 params['input_Electron_density']
-                inputs_group.attrs['Magnetic_field [T]'] =                      params['input_Magnetic_field']
-                inputs_group.attrs['Electron_temperature [eV]'] =               params['input_Electron_temperature_eV']
-                inputs_group.attrs['Electron_temperature [K]'] =                params['input_Electron_temperature_K']
-                inputs_group.attrs['Ion_density [m^-3]'] =                      params['input_Ion_density']
-                inputs_group.attrs['Antenna_frequency [Hz]'] =                  params['input_Antenna_frequency']
-                inputs_group.attrs['Angular_frequency [s^-1]'] =                params['input_Angular_frequency']
+                inputs_group.attrs['Electron_density [m^-3]'] =                 params['Electron_density']
+                inputs_group.attrs['Magnetic_field [T]'] =                      params['Magnetic_field']
+                inputs_group.attrs['Electron_temperature [eV]'] =               params['Electron_temperature_eV']
+                inputs_group.attrs['Electron_temperature [K]'] =                params['Electron_temperature_K']
+                inputs_group.attrs['Ion_density [m^-3]'] =                      params['Ion_density']
+                inputs_group.attrs['Antenna_frequency [Hz]'] =                  params['Antenna_frequency']
+                inputs_group.attrs['Angular_frequency [s^-1]'] =                params['Angular_frequency']
 
                 # Save Helicon values
-                helicon_group.attrs['k_H [m^-3]'] =                             params['helicon_k_H']
-                helicon_group.attrs['k_TG [m^-3]'] =                            params['helicon_k_TG']
-                helicon_group.attrs['k_max [m^-3]'] =                           params['helicon_k_max']
-                helicon_group.attrs['k_min [m^-3]'] =                           params['helicon_k_min']
-                helicon_group.attrs['lambd_H [m]'] =                            params['helicon_lambd_H']
-                helicon_group.attrs['lambd_TG [m]'] =                           params['helicon_lambd_TG']
+                helicon_group.attrs['k_w [m^2]'] =                              params['k_w']
+                helicon_group.attrs['delta'] =                                  params['delta']
+                helicon_group.attrs['k_max [m^-3]'] =                           params['k_max']
+                helicon_group.attrs['k_min [m^-3]'] =                           params['k_min']
+                helicon_group.attrs['beta_H [m]'] =                             params['beta_H']
+                helicon_group.attrs['beta_TG [m]'] =                            params['beta_TG']
+                helicon_group.attrs['T_H [m]'] =                                params['T_H']
+                helicon_group.attrs['T_TG [m]'] =                               params['T_TG']
+                helicon_group.attrs['m [mode]'] =                               params['m']
 
                 #Save simulation values
                 simulation_group.attrs['Grid_point_size [m]'] =                 params['Grid_point_size']
                 simulation_group.attrs['Spatial_resolution [g.p]'] =            params['Spatial_resolution']
                 simulation_group.attrs['Equivalent_ne [m^-3]'] =                params['Equivalent_ne']
                 simulation_group.attrs['Equivalent_B0 [T]'] =                   params['Equivalent_B0']
+                simulation_group.attrs['Antenna_radius [cm]'] =                 params['Antenna_radius']*100
+                simulation_group.attrs['Antenna_lenght [cm]'] =                 params['Antenna_lenght']*100
                 
                 return True
                 
@@ -542,6 +563,7 @@ class TheoreticalWindow(QDialog):
             "k-beta Curve":         r"$\frac{\delta/\beta}\cdot{(\beta^2+k_s^2)}$",
             "k_boundaries" :        r"$2 * delta * k_s$ , $sqrt(delta/(1-delta)) * k_s$",
             "k_eigenvalues(cond.)": r"$Helicon_set_equation(conduct.)$",
+            "B_components(cond.)":  r"$Magnetic component(conduct.)$",
             "n-B Diagram":          r"$n = \frac{3.83 \cdot k \cdot B_0}{r_0 \cdot \omega}$",
             "Gaussian Pulse":       r"$A e^{-\frac{(x-x_0)^2}{2\sigma^2}}$",
             "Sinusoidal Wave":      r"$A \sin(2\pi f x)$",
@@ -562,11 +584,11 @@ class TheoreticalWindow(QDialog):
             "N_x":  "config/N_x",
             "N_y":  "config/N_y",
             "N_z":  "config/N_z",
-            "T":    "config/period",
-            "r_0":  "config/ant_radius",
-            "L_0":  "config/ant_lenght",
+            "T"  :  "config/period",
+            "r_a":  "config/ant_radius",
+            "L_a":  "config/ant_lenght",
             "n_e":  "n_e",
-            "B0":   "B0z"
+            "B0" :  "B0z"
         }
         
         for var, desc in eq_info["var_map"].items():
@@ -610,8 +632,13 @@ class TheoreticalWindow(QDialog):
             elif param == "T_e":
                 self.Te_input = QLineEdit()
                 self.Te_input.setValidator(QDoubleValidator())
-                self.Te_input.setText("1")  # Default 1e3 m^-1 in scientific notation
+                self.Te_input.setText("5")  # Default 1e3 m^-1 in scientific notation
                 self.param_layout.addRow("Electron Temperature (T_e) [eV]:", self.Te_input)
+            elif param == "m":
+                self.m_input = QLineEdit()
+                self.m_input.setValidator(QDoubleValidator())
+                self.m_input.setText("0")  # Default 1e3 m^-1 in scientific notation
+                self.param_layout.addRow("Antenna mode (m):", self.m_input)
             elif param == "x_min":
                 self.x_min = QLineEdit()
                 self.x_min.setValidator(QDoubleValidator())
@@ -745,6 +772,12 @@ class TheoreticalWindow(QDialog):
             ki = 0.1                           # frequency (Hz)
             kf = 0.8                    # frequency (Hz)
             return np.linspace(ki, kf, 1000)
+
+        elif eq_name == "B_components(cond.)":
+            # For k_max, plot is made against the frequency value.
+            ri = 0.0                                                    
+            rf = self.plasma_params["Antenna_radius"] - self.plasma_params["Grid_point_size"]   # antenna radius
+            return np.linspace(ri, rf, 1000)
         
         elif eq_name == "n-B Diagram":
             # For n-B diagram, we might want to plot against frequency
@@ -769,32 +802,68 @@ class TheoreticalWindow(QDialog):
             
             elif eq_name == "k-beta Curve":
                 # For n-B diagram, we might want to plot against frequency
-                delta = self.plasma_params["input_Angular_frequency"] / self.plasma_params["electron_cyclotron_frequency"]
-                k =     (delta / x) * ( x**2 + (self.plasma_params["plasma_frequency"]/PHYSICAL_CONSTANTS["c"])**2 )
+                delta = self.plasma_params["Angular_frequency"] / self.plasma_params["electron_cyclotron_frequency"]
+                k =     (delta / x) * ( x**2 + (self.plasma_params["plasma_frequency"]/sp.c)**2 )
                 return k
             
             elif eq_name == "k_boundaries":
                 # For n-B diagram, we might want to plot against frequency
                 delta =     x / self.plasma_params["electron_cyclotron_frequency"]
-                k_min =     2 * delta * (self.plasma_params["plasma_frequency"]/PHYSICAL_CONSTANTS["c"]) 
-                k_max =     np.sqrt( delta / (1 - delta) ) * (self.plasma_params["plasma_frequency"]/PHYSICAL_CONSTANTS["c"])
+                k_min =     2 * delta * (self.plasma_params["plasma_frequency"]/sp.c) 
+                k_max =     np.sqrt( delta / (1 - delta) ) * (self.plasma_params["plasma_frequency"]/sp.c)
                 return {"k_min": k_min, "k_max": k_max}
             
             elif eq_name == "k_eigenvalues(cond.)":
                 # For n-B diagram, we might want to plot against frequency
-                beta_1 =    self.plasma_params["helicon_k_H"] / x
-                beta_2 =    x / self.plasma_params["helicon_k_TG"]
+                beta_1 =    self.plasma_params["k_w"] / x
+                beta_2 =    x / self.plasma_params["delta"]
                 T_1    =    np.sqrt( beta_1**2 - x**2 )
                 T_2    =    np.sqrt( beta_2**2 - x**2 )
-                LHS =       (beta_1 + x) + (beta_1 - x)
-                RHS =       ( (beta_2 + x) + (beta_2 - x) ) * (beta_1*T_1 / (beta_2*T_2) )
+                LHS =       ( (beta_1 + x)*sc.jv(self.plasma_params["m"]-1, T_1*self.plasma_params["Antenna_radius"]) + 
+                              (beta_1 - x)*sc.jv(self.plasma_params["m"]+1, T_1*self.plasma_params["Antenna_radius"]) )
+                RHS =       ( (beta_2 + x)*sc.jv(self.plasma_params["m"]-1, T_2*self.plasma_params["Antenna_radius"]) + 
+                              (beta_2 - x)*sc.jv(self.plasma_params["m"]+1, T_2*self.plasma_params["Antenna_radius"]) )*( 
+                              (beta_1*T_1*sc.jv(self.plasma_params["m"], T_1*self.plasma_params["Antenna_radius"])) / 
+                              (beta_2*T_2*sc.jv(self.plasma_params["m"], T_2*self.plasma_params["Antenna_radius"])) )
                 return {"LHS": LHS, "RHS": RHS}
+
+            elif eq_name == "B_components(cond.)":
+                # For n-B diagram, we might want to plot against frequency
+                k = self.plasma_params["Antenna_lenght"]
+                m = self.plasma_params["m"]
+                beta_1 =    self.plasma_params["k_w"] / k
+                beta_2 =    k / self.plasma_params["delta"]
+                T_1    =    np.sqrt( beta_1**2 - k**2 )
+                T_2    =    np.sqrt( beta_2**2 - k**2 )
+
+                #Magnetic field wave components
+                B_rH   =    (beta_1 + k)*sc.jv(m-1, T_1*x) + (beta_1 - k)*sc.jv(m+1, T_1*x) 
+                B_thH  =    (beta_1 + k)*sc.jv(m-1, T_1*x) - (beta_1 - k)*sc.jv(m+1, T_1*x)
+                B_zH   =    2*T_1*sc.jv(m, T_1*x)
+
+                B_rTG  =    (beta_2 + k)*sc.jv(m-1, T_2*x) + (beta_2 - k)*sc.jv(m+1, T_2*x) 
+                B_thTG =    (beta_2 + k)*sc.jv(m-1, T_2*x) - (beta_2 - k)*sc.jv(m+1, T_2*x)
+                B_zTG  =    2*T_2*sc.jv(m, T_2*x)
+
+                B_rT   =    B_rH + B_rTG
+                B_thT  =    B_thH + B_thTG
+                B_zT   =    B_zH + B_zTG
+
+                Ar, Ath, Az = B_rT.max(), B_thT.max(), B_zT.max()
+
+                #Electric field wave components
+
+                #Plasma density current components
+                E_zH = (sp.m_e*beta_1/(sp.e**2 * sp.mu_0))*B_zH
+
+                return { "B_rH":  B_rH/Ar,  "B_thH":  B_thH/Ath,  "B_zH":  B_zH/Az,
+                         "B_rTG": B_rTG/Ar, "B_thTG": B_thTG/Ath, "B_zTG": B_zTG/Az,
+                         "B_rT":  B_rT/Ar,  "B_thT":  B_thT/Ath,  "B_zT":  B_zT/Az, }
         
         except Exception as e:
             QMessageBox.warning(self, "Error", 
                 f"Could not evaluate {eq_name} equation: {str(e)}\n"
                 f"Formula: {eq_info}\n"
-                #f"Context keys: {list(context.keys())}"
             )
             return np.zeros_like(x)
     
