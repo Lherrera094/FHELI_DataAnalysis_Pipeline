@@ -31,7 +31,7 @@ class PlotWindow(QDialog):
         # Matplotlib canvas to show figure
         self.figure = Figure()
         self.canvas = FigureCanvas( self.figure )
-        self.layout.addWidget( self.canvas, stretch=3 )
+        self.layout.addWidget( self.canvas, stretch=4 )
 
         # Dataset list widget (for multi-dataset plotting)
         self.dataset_list = QListWidget(self)
@@ -370,6 +370,13 @@ class PlotWindow(QDialog):
         self.colorbar_title_input.show()
         self.form_layout.labelForField(self.colorbar_title_input).show()
         self.plot_button.show()
+
+        if self.dataset_type == '3D':
+            self.threeD_props_container.show()
+            self.form_layout.labelForField(self.threeD_props_container).show()
+        else:
+            self.threeD_props_container.hide()
+            self.form_layout.labelForField(self.threeD_props_container).hide()
         
         # Hide 1D-specific controls
         self.hide_1d_controls()
@@ -410,6 +417,8 @@ class PlotWindow(QDialog):
         self.colorbar_title_input.hide()
         self.form_layout.labelForField(self.colorbar_title_input).hide()
         self.plot_button.hide()
+        self.threeD_props_container.hide()
+        self.form_layout.labelForField(self.threeD_props_container).hide()
 
     def remove_boundary_layers(self, data):
         """Remove the specified number of layers/points from the boundaries of the dataset."""
