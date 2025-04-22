@@ -286,6 +286,7 @@ class TheoreticalWindow(QDialog):
         r_a =               r_a*grid_point_value
         L_a =               L_a*grid_point_value
         m =                 self.parse_scientific_input(self.m_input.text())
+        k =                 2*np.pi/L_a
         Eq_n_e =            sp.epsilon_0 * sp.m_e * ((ang_f)**2) / (sp.e**2)
         Eq_B0 =             sp.m_e * ang_f / sp.e
 
@@ -330,14 +331,15 @@ class TheoreticalWindow(QDialog):
                                                     (n_e * sp.e**2)))**3,
 
             #Helicon parameters computations
+            'k':                                k,
             'k_w':                              ang_f * sp.mu_0 * sp.e * n_e / B,               #whistler wavenumber
             'delta':                            ang_f / ((sp.e * B) / sp.m_e),                  #TG wavenumber
             'k_max':                            sp.e * np.sqrt(sp.mu_0 * n_e *ang_f / (sp.e*B - sp.m_e*ang_f) ),
             'k_min':                            (2*ang_f)*np.sqrt(sp.mu_0 * sp.m_e*n_e) / B,
-            'beta_H':                           ang_f * sp.mu_0 * sp.e * n_e / (B*L_a),
-            'beta_TG':                          L_a/(ang_f / ((sp.e * B) / sp.m_e)),
-            'T_H':                              (ang_f * sp.mu_0 * sp.e * n_e / (B*L_a))**2 - L_a**2,
-            'T_TG':                             np.sqrt( (L_a/(ang_f / ((sp.e * B) / sp.m_e)))**2 - L_a**2)
+            'beta_H':                           ang_f * sp.mu_0 * sp.e * n_e / (B*k),
+            'beta_TG':                          k/(ang_f / ((sp.e * B) / sp.m_e)),
+            'T_H':                              (ang_f * sp.mu_0 * sp.e * n_e / (B*k))**2 - k**2,
+            'T_TG':                             np.sqrt( (k/(ang_f / ((sp.e * B) / sp.m_e)))**2 - k**2)
         }        
         
         return params
