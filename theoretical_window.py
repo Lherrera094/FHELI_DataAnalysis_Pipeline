@@ -79,6 +79,10 @@ class TheoreticalWindow(QDialog):
              ["f0","T_e","m"],  False ),
 
             #Series of functions for helicon waves
+            ("Wave_components(Helicon)", "W_", 
+            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
+            [ ],            True ),
+            
             ("k-beta Curve", "(delta/beta)*(beta**2 + K_s**2)",                             # k-beta curves
             {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
             [ ],            False ), 
@@ -88,10 +92,6 @@ class TheoreticalWindow(QDialog):
             [ ],            True ),
 
             ("k_eigenvalues(cond.)", "Finds the k eigenvalues for helicon waves in conduncting boundaries", 
-            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
-            [ ],            True ),
-
-            ("B_components(cond.)", "B_", 
             {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
             [ ],            True ),
 
@@ -559,16 +559,16 @@ class TheoreticalWindow(QDialog):
         
         # Update equation display with LaTeX formatting
         latex_equations = {
-            "Plasma Parameters":    r"$\omega_p, \omega_c, \lambda_D, \beta, v_A$.",
-            "k-beta Curve":         r"$\frac{\delta/\beta}\cdot{(\beta^2+k_s^2)}$",
-            "k_boundaries" :        r"$2 * delta * k_s$ , $sqrt(delta/(1-delta)) * k_s$",
-            "k_eigenvalues(cond.)": r"$Helicon_set_equation(conduct.)$",
-            "B_components(cond.)":  r"$Magnetic component(conduct.)$",
-            "n-B Diagram":          r"$n = \frac{3.83 \cdot k \cdot B_0}{r_0 \cdot \omega}$",
-            "Gaussian Pulse":       r"$A e^{-\frac{(x-x_0)^2}{2\sigma^2}}$",
-            "Sinusoidal Wave":      r"$A \sin(2\pi f x)$",
-            "Exponential Decay":    r"$A e^{-x/\tau}$",
-            "Plane Wave":           r"$A e^{i k x}$"
+            "Plasma Parameters":        r"$\omega_p, \omega_c, \lambda_D, \beta, v_A$.",
+            "k-beta Curve":             r"$\frac{\delta/\beta}\cdot{(\beta^2+k_s^2)}$",
+            "k_boundaries" :            r"$2 * delta * k_s$ , $sqrt(delta/(1-delta)) * k_s$",
+            "k_eigenvalues(cond.)":     r"$Helicon_set_equation(conduct.)$",
+            "Wave_components(Helicon)": r"$Magnetic component(conduct.)$",
+            "n-B Diagram":              r"$n = \frac{3.83 \cdot k \cdot B_0}{r_0 \cdot \omega}$",
+            "Gaussian Pulse":           r"$A e^{-\frac{(x-x_0)^2}{2\sigma^2}}$",
+            "Sinusoidal Wave":          r"$A \sin(2\pi f x)$",
+            "Exponential Decay":        r"$A e^{-x/\tau}$",
+            "Plane Wave":               r"$A e^{i k x}$"
         }
 
         eq_name = self.equation_combo.currentText()
@@ -773,7 +773,7 @@ class TheoreticalWindow(QDialog):
             kf = 0.8                    # frequency (Hz)
             return np.linspace(ki, kf, 1000)
 
-        elif eq_name == "B_components(cond.)":
+        elif eq_name == "Wave_components(Helicon)":
             # For k_max, plot is made against the frequency value.
             ri = 0.0                                                    
             rf = self.plasma_params["Antenna_radius"] - self.plasma_params["Grid_point_size"]   # antenna radius
@@ -827,10 +827,14 @@ class TheoreticalWindow(QDialog):
                               (beta_2*T_2*sc.jv(self.plasma_params["m"], T_2*self.plasma_params["Antenna_radius"])) )
                 return {"LHS": LHS, "RHS": RHS}
 
-            elif eq_name == "B_components(cond.)":
+            elif eq_name == "Wave_components(Helicon)":
                 # For n-B diagram, we might want to plot against frequency
                 k = self.plasma_params["Antenna_lenght"]
                 m = self.plasma_params["m"]
+                w = self.plasma_params["Angular_frequency"]
+                n = self.plasma_params["Electron_density"]
+                a = self.plasma_params["Antenna_radius"]
+
                 beta_1 =    self.plasma_params["k_w"] / k
                 beta_2 =    k / self.plasma_params["delta"]
                 T_1    =    np.sqrt( beta_1**2 - k**2 )
@@ -845,20 +849,58 @@ class TheoreticalWindow(QDialog):
                 B_thTG =    (beta_2 + k)*sc.jv(m-1, T_2*x) - (beta_2 - k)*sc.jv(m+1, T_2*x)
                 B_zTG  =    2*T_2*sc.jv(m, T_2*x)
 
-                B_rT   =    B_rH + B_rTG
-                B_thT  =    B_thH + B_thTG
-                B_zT   =    B_zH + B_zTG
-
+                B_rT, B_thT, B_zT =    B_rH + B_rTG, B_thH + B_thTG, B_zH + B_zTG
                 Ar, Ath, Az = B_rT.max(), B_thT.max(), B_zT.max()
 
                 #Electric field wave components
+                E_zH   = (w*sp.m_e*beta_1/(sp.e**2 * sp.mu_0 * n))*B_zH
+                dE_zH  = (w*sp.m_e*beta_1**2/(sp.e**2 * sp.mu_0 * n))*( sc.jv(m-1, T_1*x) - sc.jv(m+1, T_1*x) )
+                E_thH  = (m/(k))*E_zH - (w/k)*B_rH 
+                E_rH   = (w/k)*B_thH + (beta_1/k)*dE_zH
 
-                #Plasma density current components
-                E_zH = (sp.m_e*beta_1/(sp.e**2 * sp.mu_0))*B_zH
+                E_zTG   = (w*sp.m_e*beta_2/(sp.e**2 * sp.mu_0 * n))*B_zTG
+                dE_zTG  = (w*sp.m_e*beta_2**2/(sp.e**2 * sp.mu_0 * n))*( sc.jv(m-1, T_2*x) - sc.jv(m+1, T_2*x) )
+                E_thTG  = (m/(k))*E_zTG - (w/k)*B_rTG 
+                E_rTG   = (w/k)*B_thTG + (beta_2/k)*dE_zTG
 
-                return { "B_rH":  B_rH/Ar,  "B_thH":  B_thH/Ath,  "B_zH":  B_zH/Az,
+                E_rT, E_thT, E_zT =    E_rH + E_rTG, E_thH + E_thTG, E_zH + E_zTG
+                Cr, Cth, Cz = E_rT.max(), E_thT.max(), E_zT.max()
+
+                #Plasma current density components
+                J_rH   =    (beta_1/sp.mu_0)*B_rH 
+                J_thH  =    (beta_1/sp.mu_0)*B_thH
+                J_zH   =    (beta_1/sp.mu_0)*B_zH
+
+                J_rTG  =    (beta_2/sp.mu_0)*B_rTG 
+                J_thTG =    (beta_2/sp.mu_0)*B_thTG
+                J_zTG  =    (beta_2/sp.mu_0)*B_zTG
+
+                J_rT, J_thT, J_zT =    J_rH + J_rTG, J_thH + J_thTG, J_zH + J_zTG
+                Hr, Hth, Hz = J_rT.max(), J_thT.max(), J_zT.max()
+
+                return { "B_rH":  B_rH/Ar,  "B_thH":  B_thH/Ath,  "B_zH":  B_zH/Az,             #Magnetic Components(Norm.)
                          "B_rTG": B_rTG/Ar, "B_thTG": B_thTG/Ath, "B_zTG": B_zTG/Az,
-                         "B_rT":  B_rT/Ar,  "B_thT":  B_thT/Ath,  "B_zT":  B_zT/Az, }
+                         "B_rT":  B_rT/Ar,  "B_thT":  B_thT/Ath,  "B_zT":  B_zT/Az,
+                         "E_rH":  E_rH/Cr,  "E_thH":  E_thH/Cth,  "E_zH":  E_zH/Cz,             #Electric Components(Norm.)
+                         "E_rTG": E_zTG/Cr, "E_thTG": E_thTG/Cth, "E_zTG": E_rTG/Cz,
+                         "E_rT":  E_rT/Cr,  "E_thT":  E_thT/Cth,  "E_zT":  E_zT/Cz,
+                         "J_rH":  J_rH/Hr,  "J_thH":  J_thH/Hth,  "J_zH":  J_zH/Hz,             #Current Components(Norm.)
+                         "J_rTG": J_rTG/Hr, "J_thTG": J_thTG/Hth, "J_zTG": J_zTG/Hz,
+                         "J_rT":  J_rT/Hr,  "J_thT":  J_thT/Hth,  "J_zT":  J_zT/Hz  }
+
+            elif eq_name == "k_eigenvalues(Insu.)":
+                # For n-B diagram, we might want to plot against frequency
+                beta_1 =    self.plasma_params["k_w"] / x
+                beta_2 =    x / self.plasma_params["delta"]
+                T_1    =    np.sqrt( beta_1**2 - x**2 )
+                T_2    =    np.sqrt( beta_2**2 - x**2 )
+                LHS =       ( (beta_1 + x)*sc.jv(self.plasma_params["m"]-1, T_1*self.plasma_params["Antenna_radius"]) + 
+                              (beta_1 - x)*sc.jv(self.plasma_params["m"]+1, T_1*self.plasma_params["Antenna_radius"]) )
+                RHS =       ( (beta_2 + x)*sc.jv(self.plasma_params["m"]-1, T_2*self.plasma_params["Antenna_radius"]) + 
+                              (beta_2 - x)*sc.jv(self.plasma_params["m"]+1, T_2*self.plasma_params["Antenna_radius"]) )*( 
+                              (beta_1*T_1*sc.jv(self.plasma_params["m"], T_1*self.plasma_params["Antenna_radius"])) / 
+                              (beta_2*T_2*sc.jv(self.plasma_params["m"], T_2*self.plasma_params["Antenna_radius"])) )
+                return {"LHS": LHS, "RHS": RHS}
         
         except Exception as e:
             QMessageBox.warning(self, "Error", 
