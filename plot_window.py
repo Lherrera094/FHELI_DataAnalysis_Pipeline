@@ -2,7 +2,7 @@
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QFormLayout, QPushButton, QComboBox, 
     QLabel, QLineEdit, QFileDialog, QSpinBox, QListWidget, QAbstractItemView,
-    QListWidgetItem, QMessageBox, QWidget, QDialogButtonBox, QDoubleSpinBox
+    QListWidgetItem, QMessageBox, QWidget, QDialogButtonBox, QDoubleSpinBox, QSizePolicy
 )
 from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -25,10 +25,28 @@ class PlotWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Plot Window")
-        self.setGeometry(850, 50, 700, 900)                    # Adjusted window size (centerX, centerY, height, width)
+        self.setGeometry(850, 50, 850, 900)                    # Adjusted window size (centerX, centerY, height, width)
 
         # Layout
         self.layout = QVBoxLayout(self)
+
+        # Add zoom/reset buttons
+        self.zoom_buttons_layout = QHBoxLayout()
+        self.zoom_buttons_layout.setContentsMargins(0, 0, 0, 0)  # Remove margins
+
+        # Add a spacer first to push buttons to the right
+        self.zoom_buttons_layout.addStretch(1)  # This will consume all left space
+
+        self.zoom_button = QPushButton("Zoom Mode", self)
+        self.zoom_button.setCheckable(True)
+        self.zoom_button.clicked.connect(self.toggle_zoom_mode)
+        self.zoom_buttons_layout.addWidget(self.zoom_button)
+
+        self.reset_button = QPushButton("Reset View", self)
+        self.reset_button.clicked.connect(self.reset_view)
+        self.zoom_buttons_layout.addWidget(self.reset_button)
+
+        self.layout.addLayout(self.zoom_buttons_layout)
 
         # Matplotlib canvas to show figure
         self.figure = Figure()
@@ -38,7 +56,7 @@ class PlotWindow(QDialog):
         # Add a status bar for mouse position display
         self.status_bar = QLabel(self)
         self.status_bar.setAlignment(Qt.AlignRight)
-        self.status_bar.setStyleSheet("QLabel { background-color : white; }")
+        self.status_bar.setStyleSheet("QLabel { background-color : whitesmoke; }")
         self.layout.addWidget(self.status_bar)
 
         # Dataset list widget (for multi-dataset plotting)
@@ -57,32 +75,40 @@ class PlotWindow(QDialog):
         self.layout.addLayout(self.form_layout)
 
 #---------------------- Plot features customized by user. General for 1D and 2D --------------------------------------
+        # Create a horizontal layout for axis labels
+        title_axis_layout = QHBoxLayout()
+
         # Plot title input
+        title_axis_layout.addWidget(QLabel("Plot Title:"))
         self.title_input = QLineEdit(self)
         self.title_input.setPlaceholderText("Enter plot title")
-        self.form_layout.addRow("Plot Title:", self.title_input)
-
-        # Create a horizontal layout for axis labels
-        axis_labels_layout = QHBoxLayout()
-
+        title_axis_layout.addWidget(self.title_input)
+        
         # X-axis label
-        axis_labels_layout.addWidget(QLabel("X Label:"))
+        title_axis_layout.addWidget(QLabel("X Label:"))
         self.x_label_input = QLineEdit(self)
         self.x_label_input.setPlaceholderText("Enter x-axis label")
-        axis_labels_layout.addWidget(self.x_label_input)
+        title_axis_layout.addWidget(self.x_label_input)
 
         # Y-axis label
-        axis_labels_layout.addWidget(QLabel("Y Label:"))
+        title_axis_layout.addWidget(QLabel("Y Label:"))
         self.y_label_input = QLineEdit(self)
         self.y_label_input.setPlaceholderText("Enter y-axis label")
-        axis_labels_layout.addWidget(self.y_label_input)
+        title_axis_layout.addWidget(self.y_label_input)
 
         # Add the entire row to the form layout
-        self.form_layout.addRow("Axis Labels:", axis_labels_layout)
+        self.form_layout.addRow(title_axis_layout)
 
         # Axis label size controls
         self.axis_label_size_layout = QHBoxLayout()
         self.layout.addLayout(self.axis_label_size_layout)
+
+        self.title_label_size_label = QLabel("Plot Title Size:", self)
+        self.title_label_size_spin = QSpinBox(self)
+        self.title_label_size_spin.setRange(8,30)
+        self.title_label_size_spin.setValue(18)
+        self.axis_label_size_layout.addWidget(self.title_label_size_label)
+        self.axis_label_size_layout.addWidget(self.title_label_size_spin)
 
         self.x_label_size_label = QLabel("X Label Size:", self)
         self.x_label_size_spin = QSpinBox(self)
@@ -98,12 +124,25 @@ class PlotWindow(QDialog):
         self.axis_label_size_layout.addWidget(self.y_label_size_label)
         self.axis_label_size_layout.addWidget(self.y_label_size_spin)
 
-        self.title_label_size_label = QLabel("Plot Title Size:", self)
-        self.title_label_size_spin = QSpinBox(self)
-        self.title_label_size_spin.setRange(8,30)
-        self.title_label_size_spin.setValue(18)
-        self.axis_label_size_layout.addWidget(self.title_label_size_label)
-        self.axis_label_size_layout.addWidget(self.title_label_size_spin)
+        # Tick controls layout
+        self.tick_controls_layout = QHBoxLayout()
+        self.layout.addLayout(self.tick_controls_layout)
+        
+        self.x_tick_size_label = QLabel("X Tick Size:", self)
+        self.tick_controls_layout.addWidget(self.x_tick_size_label)
+        
+        self.x_tick_size = QSpinBox(self)
+        self.x_tick_size.setRange(6, 20)
+        self.x_tick_size.setValue(10)                               # Default size
+        self.tick_controls_layout.addWidget(self.x_tick_size)
+        
+        self.y_tick_size_label = QLabel("Y Tick Size:", self)
+        self.tick_controls_layout.addWidget(self.y_tick_size_label)
+        
+        self.y_tick_size = QSpinBox(self)
+        self.y_tick_size.setRange(6, 20)
+        self.y_tick_size.setValue(10)                               # Default size
+        self.tick_controls_layout.addWidget(self.y_tick_size)
 
 #---------------------------------------- Controls for 1D plots ----------------------------------------------------
         # Add this in the 1D controls section (after the boundary removal controls)
@@ -188,11 +227,6 @@ class PlotWindow(QDialog):
         self.boundary_layout.addWidget(self.rightp_spinbox)
 
 #-------------------------------------------------- Controls for 2D plots -----------------------------------------------
-        # Colorbar title input (for 2D plots)
-        self.colorbar_title_input = QLineEdit(self)
-        self.colorbar_title_input.setPlaceholderText("Enter colorbar title")
-        self.form_layout.addRow("Colorbar Title:", self.colorbar_title_input)
-
         # Create a container widget for 2D plot colormap controls
         self.threeD_props_container = QWidget()
         threeD_props_layout = QHBoxLayout(self.threeD_props_container)
@@ -218,6 +252,12 @@ class PlotWindow(QDialog):
         self.twoD_props_container = QWidget()
         twoD_props_layout = QHBoxLayout(self.twoD_props_container)
 
+        # Colorbar title input (for 2D plots)
+        twoD_props_layout.addWidget(QLabel("Colorbar Title:"))
+        self.colorbar_title_input = QLineEdit(self)
+        self.colorbar_title_input.setPlaceholderText("Enter colorbar title")
+        twoD_props_layout.addWidget(self.colorbar_title_input)
+
         # Colormap selection
         twoD_props_layout.addWidget(QLabel("Colormap:"))
         self.colormap_combobox = QComboBox(self)
@@ -231,7 +271,7 @@ class PlotWindow(QDialog):
         twoD_props_layout.addWidget(self.scale_combobox)
 
         # Add to form layout
-        self.form_layout.addRow("Color Features:", self.twoD_props_container)
+        self.form_layout.addRow(self.twoD_props_container)
 
         self.top_label = QLabel("Top Layers:", self)
         self.boundary_layout.addWidget(self.top_label)
@@ -316,6 +356,11 @@ class PlotWindow(QDialog):
         self.current_plots =    {}                                  # Track currently plotted datasets
         self.parent_window =    parent                              # Reference to main window
 
+        # Variables for zoom functionality
+        self.zoom_rect_selector =   None                            # Initialize the selector reference
+        self.zoom_mode =            False
+        self.previous_views =       []  # Stack for zoom history
+
         # Connect mouse events
         self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
 
@@ -374,9 +419,7 @@ class PlotWindow(QDialog):
         self.right_label.show()
         self.right_spinbox.show()
         self.twoD_props_container.show()
-        self.form_layout.labelForField(self.twoD_props_container).show()
         self.colorbar_title_input.show()
-        self.form_layout.labelForField(self.colorbar_title_input).show()
         self.plot_button.show()
 
         if self.dataset_type == '3D':
@@ -420,9 +463,7 @@ class PlotWindow(QDialog):
         self.right_label.hide()
         self.right_spinbox.hide()
         self.twoD_props_container.hide()
-        self.form_layout.labelForField(self.twoD_props_container).hide()
         self.colorbar_title_input.hide()
-        self.form_layout.labelForField(self.colorbar_title_input).hide()
         self.plot_button.hide()
         self.threeD_props_container.hide()
         self.form_layout.labelForField(self.threeD_props_container).hide()
@@ -456,6 +497,14 @@ class PlotWindow(QDialog):
 
         return data
     
+    def apply_tick_customization(self, ax):
+        """Apply tick customization to the axes."""
+        
+        
+        # Apply tick sizes
+        ax.tick_params(axis='x', labelsize=self.x_tick_size.value())
+        ax.tick_params(axis='y', labelsize=self.y_tick_size.value())
+
 # --------------------------------------------------- 1D datasets controls ---------------------------------------------------
     def add_dataset(self):
         """Add a new dataset from the main window."""
@@ -884,8 +933,38 @@ class PlotWindow(QDialog):
         # Add legend if we have any custom labels
         if any(d['label'] for d in self.datasets.values()):
             ax.legend()
+
+        # Add legend with custom styling if we have any custom labels
+        '''if any(d.get('label') for d in self.datasets.values()):
+            legend = ax.legend(
+                fontsize=12,  # Set legend font size
+                frameon=True,  # Show legend box
+                framealpha=0.8,  # Slightly transparent
+                facecolor='white',  # Background color
+                edgecolor='black',  # Border color
+                fancybox=True,  # Rounded corners
+                shadow=True,  # Add shadow effect
+                borderpad=1,  # Padding inside the box
+                labelspacing=1,  # Space between entries
+                handlelength=1.5  # Length of legend lines
+            )
+
+            # Additional legend frame customization
+            legend.get_frame().set_linewidth(1.5)  # Border thickness
+            legend.get_frame().set_linestyle('--')  # Dashed border'''
         
+        # Add this at the end, just before canvas.draw()
+        self.apply_tick_customization(ax)
+
         ax.grid(True)
+        # Store original limits for reset functionality
+        self.original_xlim = ax.get_xlim()
+        self.original_ylim = ax.get_ylim()
+
+        # Recreate the rectangle selector if in zoom mode
+        if self.zoom_mode:
+            self.create_rectangle_selector()
+
         self.canvas.draw()
 
     def twoD_plot(self):
@@ -969,7 +1048,15 @@ class PlotWindow(QDialog):
         ax.set_title(self.title_input.text() or "2D Heatmap",
                      fontsize=self.title_label_size_spin.value())
 
-            
+        # Add this at the end, just before canvas.draw()
+        self.apply_tick_customization(ax)
+        # Store original limits for reset functionality
+        self.original_xlim = ax.get_xlim()
+        self.original_ylim = ax.get_ylim()
+        # Recreate the rectangle selector if in zoom mode
+        if self.zoom_mode:
+            self.create_rectangle_selector()
+
         # Refresh the canvas
         self.canvas.draw()
 
@@ -989,7 +1076,6 @@ class PlotWindow(QDialog):
         self.figure.savefig(file_path, dpi = 1200)
 
 # ----------------------------------------------- Mouse Motion track and activity------------------------------------------------
-
     def on_mouse_move(self, event):
         """Display mouse position in status bar."""
         if event.inaxes and self.figure.axes:
@@ -1006,3 +1092,112 @@ class PlotWindow(QDialog):
                 y_fmt = "10^{:.3g}".format(np.log10(y))
                     
             self.status_bar.setText(f"x: {x_fmt}, y: {y_fmt}")
+    
+    def reset_view(self):
+        """Reset the view to the original plot limits."""
+        if self.figure.axes:
+            ax = self.figure.axes[0]
+            ax.set_xlim(self.original_xlim)
+            ax.set_ylim(self.original_ylim)
+            self.canvas.draw()
+            self.previous_views = []  # Clear zoom history
+
+    def toggle_zoom_mode(self, checked):
+        """Toggle zoom mode on/off with proper cleanup."""
+        self.zoom_mode = checked
+        if checked:
+            self.zoom_button.setStyleSheet("background-color: lightgreen")
+            self.create_rectangle_selector()
+        else:
+            self.zoom_button.setStyleSheet("")
+            if hasattr(self, 'zoom_rect_selector') and self.zoom_rect_selector:
+                try:
+                    self.zoom_rect_selector.set_active(False)
+                except:
+                    pass
+
+    def create_rectangle_selector(self):
+        """Create a new rectangle selector with proper styling and removal handling."""
+        if not self.figure.axes:
+            return
+        
+        ax = self.figure.axes[0]
+        
+        # Clean up previous selector
+        if hasattr(self, 'zoom_rect_selector') and self.zoom_rect_selector:
+            try:
+                self.zoom_rect_selector.set_active(False)
+            except:
+                pass
+        
+        def on_zoom_select(eclick, erelease):
+            """Handle zoom selection with proper cleanup."""
+            if not self.zoom_mode or not self.figure.axes:
+                return
+                
+            x1, y1 = eclick.xdata, eclick.ydata
+            x2, y2 = erelease.xdata, erelease.ydata
+            
+            # Skip if click and release are too close
+            if abs(x1 - x2) < 1e-10 or abs(y1 - y2) < 1e-10:
+                return
+                
+            # Ensure proper ordering
+            x1, x2 = sorted([x1, x2])
+            y1, y2 = sorted([y1, y2])
+            
+            # Store current view
+            current_xlim = ax.get_xlim()
+            current_ylim = ax.get_ylim()
+            self.previous_views.append((current_xlim, current_ylim))
+            
+            # Apply new zoom
+            ax.set_xlim(x1, x2)
+            ax.set_ylim(y1, y2)
+            self.canvas.draw()
+        
+        # Create new selector
+        self.zoom_rect_selector = RectangleSelector(
+            ax,
+            on_zoom_select,
+            useblit=True,
+            button=[1],
+            minspanx=5,
+            minspany=5,
+            spancoords='pixels',
+            interactive=True
+        )
+        
+        # Style the rectangle
+        self.style_zoom_rectangle()
+        
+        self.zoom_rect_selector.set_active(self.zoom_mode)
+
+    def style_zoom_rectangle(self):
+        """Apply custom styling to the zoom rectangle."""
+        if not hasattr(self, 'zoom_rect_selector') or not self.zoom_rect_selector:
+            return
+        
+        # Try all known rectangle attribute names
+        rect = None
+        for attr in ['rect', 'rectangle', '_rect']:
+            if hasattr(self.zoom_rect_selector, attr):
+                rect = getattr(self.zoom_rect_selector, attr)
+                break
+        
+        # If no rectangle found, try artists list
+        if rect is None and hasattr(self.zoom_rect_selector, 'artists'):
+            for artist in self.zoom_rect_selector.artists:
+                if isinstance(artist, plt.Rectangle):
+                    rect = artist
+                    break
+        
+        if rect:
+            try:
+                rect.set_alpha(0.3)
+                rect.set_facecolor('lightblue')
+                rect.set_edgecolor('blue')
+                rect.set_linewidth(1.5)
+                self.canvas.draw()
+            except Exception as e:
+                print(f"Error styling zoom rectangle: {e}")
