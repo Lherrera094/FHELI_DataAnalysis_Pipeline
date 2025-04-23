@@ -25,7 +25,7 @@ class PlotWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Plot Window")
-        self.setGeometry(850, 50, 850, 900)                    # Adjusted window size (centerX, centerY, height, width)
+        self.setGeometry(850, 50, 900, 900)                    # Adjusted window size (centerX, centerY, height, width)
 
         # Layout
         self.layout = QVBoxLayout(self)
@@ -100,49 +100,91 @@ class PlotWindow(QDialog):
         self.form_layout.addRow(title_axis_layout)
 
         # Axis label size controls
-        self.axis_label_size_layout = QHBoxLayout()
-        self.layout.addLayout(self.axis_label_size_layout)
+        self.label_size_layout = QHBoxLayout()
+        self.layout.addLayout(self.label_size_layout)
 
         self.title_label_size_label = QLabel("Plot Title Size:", self)
         self.title_label_size_spin = QSpinBox(self)
         self.title_label_size_spin.setRange(8,30)
         self.title_label_size_spin.setValue(18)
-        self.axis_label_size_layout.addWidget(self.title_label_size_label)
-        self.axis_label_size_layout.addWidget(self.title_label_size_spin)
+        self.label_size_layout.addWidget(self.title_label_size_label)
+        self.label_size_layout.addWidget(self.title_label_size_spin)
 
         self.x_label_size_label = QLabel("X Label Size:", self)
         self.x_label_size_spin = QSpinBox(self)
         self.x_label_size_spin.setRange(8, 30)  # Reasonable font size range
         self.x_label_size_spin.setValue(12)      # Default size
-        self.axis_label_size_layout.addWidget(self.x_label_size_label)
-        self.axis_label_size_layout.addWidget(self.x_label_size_spin)
+        self.label_size_layout.addWidget(self.x_label_size_label)
+        self.label_size_layout.addWidget(self.x_label_size_spin)
 
         self.y_label_size_label = QLabel("Y Label Size:", self)
         self.y_label_size_spin = QSpinBox(self)
         self.y_label_size_spin.setRange(8, 30)
         self.y_label_size_spin.setValue(12)
-        self.axis_label_size_layout.addWidget(self.y_label_size_label)
-        self.axis_label_size_layout.addWidget(self.y_label_size_spin)
+        self.label_size_layout.addWidget(self.y_label_size_label)
+        self.label_size_layout.addWidget(self.y_label_size_spin)
+        
+        self.x_tick_size_label = QLabel("X Tick Size:", self)
+        self.x_tick_size = QSpinBox(self)
+        self.x_tick_size.setRange(6, 20)
+        self.x_tick_size.setValue(10)
+        self.label_size_layout.addWidget(self.x_tick_size_label)
+        self.label_size_layout.addWidget(self.x_tick_size)
 
-        # Tick controls layout
+        self.y_tick_size_label = QLabel("Y Tick Size:", self)
+        self.y_tick_size = QSpinBox(self)
+        self.y_tick_size.setRange(6, 20)
+        self.y_tick_size.setValue(10) 
+        self.label_size_layout.addWidget(self.y_tick_size_label)
+        self.label_size_layout.addWidget(self.y_tick_size)
+
+# Controls for ticks scaling--------------------------------------------------------------------------------------------
+        # Add tick controls layout
         self.tick_controls_layout = QHBoxLayout()
         self.layout.addLayout(self.tick_controls_layout)
         
-        self.x_tick_size_label = QLabel("X Tick Size:", self)
-        self.tick_controls_layout.addWidget(self.x_tick_size_label)
+        # X-axis tick scaling
+        self.x_tick_scale_label = QLabel("X Tick Scale:", self)
+        self.tick_controls_layout.addWidget(self.x_tick_scale_label)
         
-        self.x_tick_size = QSpinBox(self)
-        self.x_tick_size.setRange(6, 20)
-        self.x_tick_size.setValue(10)                               # Default size
-        self.tick_controls_layout.addWidget(self.x_tick_size)
+        self.x_tick_scale = QDoubleSpinBox(self)
+        self.x_tick_scale.setRange(0.0001, 1000000)
+        self.x_tick_scale.setValue(1.0)  # Default no scaling
+        self.x_tick_scale.setDecimals(7)  # Allow up to 7 decimal places
+        self.x_tick_scale.setSingleStep(0.1)
+        self.tick_controls_layout.addWidget(self.x_tick_scale)
         
-        self.y_tick_size_label = QLabel("Y Tick Size:", self)
-        self.tick_controls_layout.addWidget(self.y_tick_size_label)
+        # X-axis tick offset
+        self.x_tick_offset_label = QLabel("X Tick Offset:", self)
+        self.tick_controls_layout.addWidget(self.x_tick_offset_label)
         
-        self.y_tick_size = QSpinBox(self)
-        self.y_tick_size.setRange(6, 20)
-        self.y_tick_size.setValue(10)                               # Default size
-        self.tick_controls_layout.addWidget(self.y_tick_size)
+        self.x_tick_offset = QDoubleSpinBox(self)
+        self.x_tick_offset.setRange(-1000000, 1000000)
+        self.x_tick_offset.setValue(0.0)  # Default no offset
+        self.x_tick_offset.setSingleStep(0.1)
+        self.tick_controls_layout.addWidget(self.x_tick_offset)
+
+        # X-axis tick scaling
+        self.y_tick_scale_label = QLabel("Y Tick Scale:", self)
+        self.tick_controls_layout.addWidget(self.y_tick_scale_label)
+        
+        self.y_tick_scale = QDoubleSpinBox(self)
+        self.y_tick_scale.setRange(0.0001, 1000000)
+        self.y_tick_scale.setValue(1.0)  # Default no scaling
+        self.y_tick_scale.setDecimals(7)  # Allow up to 7 decimal places
+        self.y_tick_scale.setSingleStep(0.1)
+        self.tick_controls_layout.addWidget(self.y_tick_scale)
+        
+        # X-axis tick offset
+        self.y_tick_offset_label = QLabel("Y Tick Offset:", self)
+        self.tick_controls_layout.addWidget(self.y_tick_offset_label)
+        
+        self.y_tick_offset = QDoubleSpinBox(self)
+        self.y_tick_offset.setRange(-1000000, 1000000)
+        self.y_tick_offset.setValue(0.0)  # Default no offset
+        self.y_tick_offset.setSingleStep(0.1)
+        self.tick_controls_layout.addWidget(self.y_tick_offset)
+
 
 #---------------------------------------- Controls for 1D plots ----------------------------------------------------
         # Add this in the 1D controls section (after the boundary removal controls)
@@ -356,10 +398,14 @@ class PlotWindow(QDialog):
         self.current_plots =    {}                                  # Track currently plotted datasets
         self.parent_window =    parent                              # Reference to main window
 
+        # Variables to store original tick data
+        self.original_xticks = None
+        self.original_xlim = None
+
         # Variables for zoom functionality
         self.zoom_rect_selector =   None                            # Initialize the selector reference
         self.zoom_mode =            False
-        self.previous_views =       []  # Stack for zoom history
+        self.previous_views =       []                              # Stack for zoom history
 
         # Connect mouse events
         self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
@@ -504,6 +550,22 @@ class PlotWindow(QDialog):
         # Apply tick sizes
         ax.tick_params(axis='x', labelsize=self.x_tick_size.value())
         ax.tick_params(axis='y', labelsize=self.y_tick_size.value())
+
+    def apply_tick_scaling(self, ax):
+        """Apply tick scaling to the axes."""
+        scale = self.x_tick_scale.value()
+        offset = self.x_tick_offset.value()
+        
+        if scale != 1.0 or offset != 0.0:
+            # Get current ticks
+            ticks = ax.get_xticks()
+            
+            # Calculate new tick labels
+            new_labels = [f"{(tick * scale) + offset:.2f}" for tick in ticks]
+            
+            # Set the new labels while keeping the same tick positions
+            ax.set_xticks(ticks)
+            ax.set_xticklabels(new_labels)
 
 # --------------------------------------------------- 1D datasets controls ---------------------------------------------------
     def add_dataset(self):
@@ -956,6 +1018,9 @@ class PlotWindow(QDialog):
         # Add this at the end, just before canvas.draw()
         self.apply_tick_customization(ax)
 
+        # Apply tick scaling if needed
+        self.apply_tick_scaling(ax)
+
         ax.grid(True)
         # Store original limits for reset functionality
         self.original_xlim = ax.get_xlim()
@@ -1050,9 +1115,12 @@ class PlotWindow(QDialog):
 
         # Add this at the end, just before canvas.draw()
         self.apply_tick_customization(ax)
+        # Apply tick scaling if needed
+        self.apply_tick_scaling(ax)
         # Store original limits for reset functionality
         self.original_xlim = ax.get_xlim()
         self.original_ylim = ax.get_ylim()
+        
         # Recreate the rectangle selector if in zoom mode
         if self.zoom_mode:
             self.create_rectangle_selector()

@@ -94,6 +94,10 @@ class TheoreticalWindow(QDialog):
             {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
             [ ],            True ),
 
+            ("k_eigenvalues(Insu.)", "Finds the k eigenvalues for helicon waves in conduncting boundaries", 
+            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
+            [ ],            True ),
+
             ("Gaussian Pulse", "A*exp(-(x-x0)**2/(2*σ**2))", 
              {"A": "amplitude", "σ": "width", "x0": "center"},
              ["x_min", "x_max"], False),
@@ -564,8 +568,9 @@ class TheoreticalWindow(QDialog):
             "Plasma Parameters":        r"$\omega_p, \omega_c, \lambda_D, \beta, v_A$.",
             "k-beta Curve":             r"$\frac{\delta/\beta}\cdot{(\beta^2+k_s^2)}$",
             "k_boundaries" :            r"$2 * delta * k_s$ , $sqrt(delta/(1-delta)) * k_s$",
-            "k_eigenvalues(cond.)":     r"$Helicon_set_equation(conduct.)$",
-            "Wave_components(Helicon)": r"$Magnetic component(conduct.)$",
+            "k_eigenvalues(cond.)":     r"$Eigenvalue_solver(Conduct.)$",
+            "Wave_components(Helicon)": r"$Helicon_wave_components$",
+            "k_eigenvalues(Insu.)":     r"$Eigenvalue_solver(Insulat.)$",
             "n-B Diagram":              r"$n = \frac{3.83 \cdot k \cdot B_0}{r_0 \cdot \omega}$",
             "Gaussian Pulse":           r"$A e^{-\frac{(x-x_0)^2}{2\sigma^2}}$",
             "Sinusoidal Wave":          r"$A \sin(2\pi f x)$",
