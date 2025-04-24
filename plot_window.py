@@ -25,7 +25,7 @@ class PlotWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Plot Window")
-        self.setGeometry(850, 50, 900, 900)                    # Adjusted window size (centerX, centerY, height, width)
+        self.setGeometry(850, 50, 900, 950)                    # Adjusted window size (centerX, centerY, height, width)
 
         # Layout
         self.layout = QVBoxLayout(self)
@@ -50,8 +50,16 @@ class PlotWindow(QDialog):
 
         # Matplotlib canvas to show figure
         self.figure = Figure()
+        self.figure.subplots_adjust(
+            left=       0.09,       # Reduce left margin (default 0.125)
+            right=      0.99,       # Reduce right margin
+            bottom=     0.1,        # Reduce bottom margin
+            top=        0.92,       # Reduce top margin
+            wspace=     0.2,        # Width space between subplots (if you add more)
+            hspace=     0.2         # Height space between subplots
+        )
         self.canvas = FigureCanvas( self.figure )
-        self.layout.addWidget( self.canvas, stretch=4 )
+        self.layout.addWidget( self.canvas, stretch=6 )
 
         # Add a status bar for mouse position display
         self.status_bar = QLabel(self)
@@ -65,7 +73,7 @@ class PlotWindow(QDialog):
         self.dataset_list.itemSelectionChanged.connect(self.on_dataset_selected)
 
         # Set a fixed height for the list widget (e.g., 150 pixels)
-        self.dataset_list.setFixedHeight(70)  # Adjust this value as needed
+        self.dataset_list.setFixedHeight(50)  # Adjust this value as needed
         self.dataset_list.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
 
         self.layout.addWidget(self.dataset_list)                    # Store as instance variable
@@ -187,35 +195,20 @@ class PlotWindow(QDialog):
 
 
 #---------------------------------------- Controls for 1D plots ----------------------------------------------------
-        # Add this in the 1D controls section (after the boundary removal controls)
-        self.scale_layout = QHBoxLayout()
-        self.layout.addLayout(self.scale_layout)
-
-        # X-axis scale
-        self.x_scale_label = QLabel("X Scale:", self)
-        self.scale_layout.addWidget(self.x_scale_label)
-        self.x_scale_combobox = QComboBox(self)
-        self.x_scale_combobox.addItems(["Linear", "Log"])
-        self.scale_layout.addWidget(self.x_scale_combobox)
-
-        # Y-axis scale
-        self.y_scale_label = QLabel("Y Scale:", self)
-        self.scale_layout.addWidget(self.y_scale_label)
-        self.y_scale_combobox = QComboBox(self)
-        self.y_scale_combobox.addItems(["Linear", "Log"])
-        self.scale_layout.addWidget(self.y_scale_combobox)
-
         # Create a container widget that includes both the label and controls
         self.line_props_container = QWidget()
         line_props_container_layout = QHBoxLayout(self.line_props_container)
 
-        # Add the "Line Properties" label
-        line_props_label = QLabel("Line Properties:")
-        line_props_container_layout.addWidget(line_props_label)
-
         # Add the controls
         line_props_layout = QHBoxLayout()
         line_props_container_layout.addLayout(line_props_layout)
+
+        # Add legend label next to line properties
+        line_props_layout.addWidget(QLabel("Legend:"))
+        self.legend_input = QLineEdit(self)
+        self.legend_input.setPlaceholderText("Enter legend label")
+        self.legend_input.setMinimumWidth(150)  # Give it some space
+        line_props_layout.addWidget(self.legend_input)
 
         # Line color
         line_props_layout.addWidget(QLabel("Color:"))
@@ -242,14 +235,23 @@ class PlotWindow(QDialog):
         # Add the entire container to the form layout (without an additional label)
         self.form_layout.addRow(self.line_props_container)
 
-        # Legend input for 1D plots
-        self.legend_input = QLineEdit(self)
-        self.legend_input.setPlaceholderText("Enter legend label")
-        self.form_layout.addRow("Legend Label:", self.legend_input)
-
         # Boundary layer removal controls
         self.boundary_layout = QHBoxLayout()
         self.layout.addLayout(self.boundary_layout)
+
+        # X-axis scale
+        self.x_scale_label = QLabel("X Scale:", self)
+        self.boundary_layout.addWidget(self.x_scale_label)
+        self.x_scale_combobox = QComboBox(self)
+        self.x_scale_combobox.addItems(["Linear", "Log"])
+        self.boundary_layout.addWidget(self.x_scale_combobox)
+
+        # Y-axis scale
+        self.y_scale_label = QLabel("Y Scale:", self)
+        self.boundary_layout.addWidget(self.y_scale_label)
+        self.y_scale_combobox = QComboBox(self)
+        self.y_scale_combobox.addItems(["Linear", "Log"])
+        self.boundary_layout.addWidget(self.y_scale_combobox)
 
         #1D Delet points
         self.left_points = QLabel("Left points:", self)
@@ -428,8 +430,6 @@ class PlotWindow(QDialog):
         """Show controls for 1D plotting."""
         # Show line properties and legend controls
         self.line_props_container.show()
-        self.form_layout.labelForField(self.legend_input).show()
-        self.legend_input.show()
         self.dataset_list.show()
         
         # Show scale controls
@@ -481,8 +481,6 @@ class PlotWindow(QDialog):
     def hide_1d_controls(self):
         """Hide controls for 1D plotting."""
         self.line_props_container.hide()
-        self.form_layout.labelForField(self.legend_input).hide()
-        self.legend_input.hide()
         self.dataset_list.hide()
         self.x_scale_label.hide()
         self.x_scale_combobox.hide()

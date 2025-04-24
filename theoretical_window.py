@@ -12,7 +12,6 @@ from PyQt5.QtGui import QDoubleValidator
 import numpy as np
 import h5py
 import re
-from datetime import datetime
 
 # Physical constants (SI units)
 PHYSICAL_CONSTANTS = {
@@ -33,7 +32,7 @@ class TheoreticalWindow(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Theoretical Analysis")
-        self.setGeometry(850, 50, 700, 900)
+        self.setGeometry(850, 50, 700, 950)
         
         # Reference to main window for accessing HDF5 data
         self.plasma_params = None                           # High level dictionary to save computed plasma parameters
@@ -98,18 +97,12 @@ class TheoreticalWindow(QDialog):
             {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
             [ ],            True ),
 
-            ("Gaussian Pulse", "A*exp(-(x-x0)**2/(2*σ**2))", 
-             {"A": "amplitude", "σ": "width", "x0": "center"},
-             ["x_min", "x_max"], False),
-            ("Sinusoidal Wave", "A*sin(2π*f*x)", 
-             {"A": "amplitude", "f": "frequency"},
-             ["x_min", "x_max"], False),
-            ("Exponential Decay", "A*exp(-x/τ)", 
-             {"A": "amplitude", "τ": "decay_time"},
-             ["x_min", "x_max"], False),
-            ("Plane Wave", "A*exp(1j*k*x)", 
-             {"A": "amplitude", "k": "wavenumber"},
-             ["x_min", "x_max"], False)
+            ("Dispersion_Relation", "R/L_O/X_mode", 
+            {"T":"Period [g.p.]", "n_e": "Electron density [Norm.]", "B0": "Magnetic field [Norm.]"},
+            [ ],            True ),
+
+            ("Sinusoidal_Wave", "A*sin(2π*f*x)", 
+             {"T":"Period [g.p.]"}, ["Amplitud","t_end"],        False)
         ]
         
         self.equation_info = {}
@@ -571,11 +564,9 @@ class TheoreticalWindow(QDialog):
             "k_eigenvalues(cond.)":     r"$Eigenvalue_solver(Conduct.)$",
             "Wave_components(Helicon)": r"$Helicon_wave_components$",
             "k_eigenvalues(Insu.)":     r"$Eigenvalue_solver(Insulat.)$",
+            "Dispersion_Relation":      r"R/L_O/X_modes",
             "n-B Diagram":              r"$n = \frac{3.83 \cdot k \cdot B_0}{r_0 \cdot \omega}$",
-            "Gaussian Pulse":           r"$A e^{-\frac{(x-x_0)^2}{2\sigma^2}}$",
-            "Sinusoidal Wave":          r"$A \sin(2\pi f x)$",
-            "Exponential Decay":        r"$A e^{-x/\tau}$",
-            "Plane Wave":               r"$A e^{i k x}$"
+            "Sinusoidal_Wave":          r"$A \sin(2\pi f x)$"
         }
 
         eq_name = self.equation_combo.currentText()
@@ -646,6 +637,16 @@ class TheoreticalWindow(QDialog):
                 self.m_input.setValidator(QDoubleValidator())
                 self.m_input.setText("0")  # Default 1e3 m^-1 in scientific notation
                 self.param_layout.addRow("Antenna mode (m):", self.m_input)
+            elif param == "t_end":
+                self.t_input = QLineEdit()
+                self.t_input.setValidator(QDoubleValidator())
+                self.t_input.setText("0")  # Default 1e3 m^-1 in scientific notation
+                self.param_layout.addRow("Studied number of periods (t_end):", self.t_input)
+            elif param == "Amplitud":
+                self.A_input = QLineEdit()
+                self.A_input.setValidator(QDoubleValidator())
+                self.A_input.setText("1")  # Default 1e3 m^-1 in scientific notation
+                self.param_layout.addRow("Wave Amplitude:", self.A_input)
             elif param == "x_min":
                 self.x_min = QLineEdit()
                 self.x_min.setValidator(QDoubleValidator())
@@ -757,7 +758,7 @@ class TheoreticalWindow(QDialog):
         """Generate x-axis values based on user input."""
         eq_name = self.equation_combo.currentText()
         
-        if eq_name in ["Gaussian Pulse", "Sinusoidal Wave", "Exponential Decay", "Plane Wave"]:
+        if eq_name in ["Gaussian Pulse", "Exponential Decay", "Plane Wave"]:
             x_min = self.parse_scientific_input(self.x_min.text())
             x_max = self.parse_scientific_input(self.x_max.text())
             num_points = 1000
@@ -774,10 +775,16 @@ class TheoreticalWindow(QDialog):
             w1 = 60000000                    # frequency (Hz)
             return np.linspace(w0, w1, 50000)
         
-        elif eq_name == "k_eigenvalues(cond.)" or "k_eigenvalues(Insu.)":
+        elif eq_name == "k_eigenvalues(cond.)":
             # For k_max, plot is made against the frequency value.
-            ki = 0.1                           # frequency (Hz)
-            kf = 0.6                    # frequency (Hz)
+            ki = 0.1                            # frequency (Hz)
+            kf = 0.6                            # frequency (Hz)
+            return np.linspace(ki, kf, 1000)
+
+        elif eq_name == "k_eigenvalues(Insu.)":
+            # For k_max, plot is made against the frequency value.
+            ki = 0.1                            # frequency (Hz)
+            kf = 0.6                            # frequency (Hz)
             return np.linspace(ki, kf, 1000)
 
         elif eq_name == "Wave_components(Helicon)":
@@ -785,11 +792,25 @@ class TheoreticalWindow(QDialog):
             ri = 0.0                                                    
             rf = self.plasma_params["Antenna_radius"] - self.plasma_params["Grid_point_size"]   # antenna radius
             return np.linspace(ri, rf, 1000)
+
+        elif eq_name == "Dispersion_Relation":
+            # For k_max, plot is made against the frequency value.
+            w0 = 0.0                                                    
+            w1 = 2*np.pi*1e9   # antenna radius
+            return np.linspace(w0, w1, 500000)
         
+        elif eq_name == "Sinusoidal_Wave":
+            # For n-B diagram, we might want to plot against frequency
+            T =     self.extracted_vars.get('T', 100)
+            t =     self.parse_scientific_input(self.t_input.text())
+            t_0 =   0                 # [Tesla]
+            t_1 =   T * t
+            return np.linspace(t_0, t_1, 50000)
+
         elif eq_name == "n-B Diagram":
             # For n-B diagram, we might want to plot against frequency
-            B0_min = 0                 # [Tesla]
-            B0_max = 1  # 1 THz
+            B0_min = 0                  # [Tesla]
+            B0_max = 1                  # 1 THz
             return np.linspace(B0_min, B0_max, 10000)
         
         else:
@@ -801,7 +822,7 @@ class TheoreticalWindow(QDialog):
         eq_info = self.equation_info[eq_name]
 
         try:
-            if eq_name == "Plasma Parameters":
+            if   eq_name == "Plasma Parameters":
                 params = self.calculate_plasma_parameters()
                 if params is not None:
                     self.show_plasma_parameters_dialog(params)
@@ -898,10 +919,11 @@ class TheoreticalWindow(QDialog):
 
             elif eq_name == "k_eigenvalues(Insu.)":
                 # For n-B diagram, we might want to plot against frequency
-                k = 2*np.pi/self.plasma_params["Antenna_lenght"]
-                m = self.plasma_params["m"]
-                w = self.plasma_params["Angular_frequency"]
-                w_p = self.plasma_params["plasma_frequency"]
+                k =     2*np.pi/self.plasma_params["Antenna_lenght"]
+                a =     self.plasma_params["Antenna_radius"]
+                m =     self.plasma_params["m"]
+                w =     self.plasma_params["Angular_frequency"]
+                w_p =   self.plasma_params["plasma_frequency"]
 
                 beta_1 =    self.plasma_params["k_w"] / x
                 beta_2 =    x / self.plasma_params["delta"]
@@ -922,7 +944,32 @@ class TheoreticalWindow(QDialog):
                 RHS =       (f_1 - g_1 + l*beta_1*h_1)/(f_2 - g_2 + l*beta_2*h_2)
 
                 return {"LHS": LHS, "RHS": RHS}
-        
+
+            elif eq_name == "Dispersion_Relation":
+                # For n-B diagram, we might want to plot against frequency
+                w_c =   self.plasma_params["electron_cyclotron_frequency"]
+                w_p =   self.plasma_params["plasma_frequency"]
+                w_h =   np.sqrt(w_p**2 + w_c**2)
+            
+                k_R2 =      (x**2/sp.c**2) - (w_p**2/sp.c**2)/(1 - (w_c/x) )
+                k_R =       np.where( np.isreal(np.sqrt(k_R2)), np.sqrt(k_R2), np.nan )
+                k_L2 =      (x**2/sp.c**2) - (w_p**2/sp.c**2)/(1 + (w_c/x) )
+                k_L =       np.where( np.isreal(np.sqrt(k_L2)), np.sqrt(k_L2), np.nan )
+                k_O2 =      (x**2 - w_p**2)/sp.c**2
+                k_O =       np.where( np.isreal(np.sqrt(k_O2)), np.sqrt(k_O2), np.nan )
+                k_X2 =      (x**2/sp.c**2) - (w_p**2/sp.c**2)*(x**2 - w_p**2)/(x**2 - w_h**2)
+                k_X =       np.where( np.isreal(np.sqrt(k_X2)), np.sqrt(k_X2), np.nan )
+                
+                return {"R_mode": k_R, "L_mode": k_L, "O_mode":k_O, "X_mode":k_X}
+
+            elif eq_name == "Sinusoidal_Wave":
+                # For n-B diagram, we might want to plot against frequency
+                T =     self.extracted_vars.get('T', 100)
+                A =     self.parse_scientific_input(self.A_input.text())
+                f_sim =   A*np.sin( 2*np.pi * x / T )
+    
+                return f_sim
+
         except Exception as e:
             QMessageBox.warning(self, "Error", 
                 f"Could not evaluate {eq_name} equation: {str(e)}\n"
@@ -1012,7 +1059,7 @@ class TheoreticalWindow(QDialog):
             layout.addWidget(label)
             
             name_input = QLineEdit()
-            default_name = f"{self.equation_combo.currentText()}_(user_identifier)"
+            default_name = f"{self.equation_combo.currentText()}_"
             name_input.setText(default_name)
             layout.addWidget(name_input)
             
@@ -1050,7 +1097,7 @@ class TheoreticalWindow(QDialog):
             if eq_name == "n-B Diagram":
                 plot_info["frequency"] = self.parse_scientific_input(self.f0_input.text())
                 plot_info["wavenumber"] = self.parse_scientific_input(self.k_input.text())
-            elif eq_name in ["Gaussian Pulse", "Sinusoidal Wave", "Exponential Decay", "Plane Wave"]:
+            elif eq_name in ["Gaussian Pulse", "Exponential Decay", "Plane Wave"]:
                 plot_info["x_min"] = self.parse_scientific_input(self.x_min.text())
                 plot_info["x_max"] = self.parse_scientific_input(self.x_max.text())
 

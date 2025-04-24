@@ -32,7 +32,7 @@ class HDF5Viewer(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("FHELI HDF5 Visualization.")
-        self.setGeometry(200, 50, 650, 900)
+        self.setGeometry(200, 50, 650, 950)
 
         # Main widget and layout
         self.main_widget = QWidget()
