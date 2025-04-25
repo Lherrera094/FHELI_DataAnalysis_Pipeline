@@ -777,14 +777,14 @@ class TheoreticalWindow(QDialog):
         
         elif eq_name == "k_eigenvalues(cond.)":
             # For k_max, plot is made against the frequency value.
-            ki = 0.1                            # frequency (Hz)
-            kf = 0.6                            # frequency (Hz)
+            ki = self.plasma_params["k_min"]                # frequency (Hz)
+            kf = self.plasma_params["k_max"]                # frequency (Hz)
             return np.linspace(ki, kf, 1000)
 
         elif eq_name == "k_eigenvalues(Insu.)":
             # For k_max, plot is made against the frequency value.
-            ki = 0.1                            # frequency (Hz)
-            kf = 0.6                            # frequency (Hz)
+            ki = self.plasma_params["k_min"]                # frequency (Hz)
+            kf = self.plasma_params["k_max"]                # frequency (Hz)
             return np.linspace(ki, kf, 1000)
 
         elif eq_name == "Wave_components(Helicon)":
